@@ -1,8 +1,10 @@
 // Dashboard.jsx
-import React, { useContext } from "react";
+import React, { useContext,useEffect } from "react";
 import { InventoryContext } from "../contexts/InventoryContext";
 import { Link, useNavigate } from "react-router-dom";
 import "../Styles/Dashboard.css";
+import axios  from  'axios'
+
 
 // ICON IMPORTS
 import {
@@ -30,12 +32,14 @@ const Dashboard = () => {
   const fetchUser = async () => {
     try {
       const token = localStorage.getItem("token");
+      console.log(token)
       const response = await axios.get("http://localhost:3000/auth/dashboard", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       if (response.status !== 201) {
+
         navigate("/login");
       }
     } catch (err) {

@@ -21,7 +21,7 @@ app.get("/dashboard", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-  // checkDb();
+  checkDb();
 });
 
 function checkDb() {

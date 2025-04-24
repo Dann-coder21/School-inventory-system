@@ -4,7 +4,12 @@ import bcrypt from "bcrypt";
 const createAccount = async (req, res) => {
   const { fullname, email, dob, phone, password } = req.body;
 
-  console.log("req.body", req.body);
+  
+
+
+
+
+ 
   try {
     const db = await connectToDatabase();
     const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [

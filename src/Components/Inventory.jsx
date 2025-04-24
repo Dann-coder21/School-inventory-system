@@ -1,5 +1,5 @@
 import React, { useContext, useState } from "react";
-import "../styles/inventory.css";
+import "../Styles/Inventory.css"
 import { Link } from "react-router-dom";
 import { InventoryContext } from "../contexts/InventoryContext";
 import {

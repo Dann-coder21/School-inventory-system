@@ -71,11 +71,12 @@ const verifyToken = async (req, res, next) => {
     req.userId = decoded.id;
     next();
   } catch (err) {
+    console.log(err)
     return res.status(500).json({ message: "server error" });
   }
 };
 
-router.get("/home", verifyToken, async (req, res) => {
+router.get("/dashboard", verifyToken, async (req, res) => {
   try {
     const db = await connectToDatabase();
     const [rows] = await db.query("SELECT * FROM users WHERE id = ?", [
@@ -87,7 +88,8 @@ router.get("/home", verifyToken, async (req, res) => {
 
     return res.status(201).json({ user: rows[0] });
   } catch (err) {
-    return res.status(500).json({ message: "server error" });
+    consol.log(err)
+    return res.status(500).json({ message: err });
   }
 });
 

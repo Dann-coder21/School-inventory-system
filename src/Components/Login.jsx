@@ -22,7 +22,11 @@ const Login = ({ setIsLoggedIn }) => {
         "http://localhost:3000/auth/login",
         values
       );
+    
       if (response.status === 201) {
+        localStorage.setItem('token',response.data.token)
+        localStorage.setItem('isLoggedIn',true)
+        
         navigate("/dashboard");
       }
     } catch (err) {
