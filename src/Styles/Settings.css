@@ -1,0 +1,187 @@
+/* Reset & base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f1f4f9;
+    display: flex;
+    height: 100vh;
+  }
+  
+  /* Sidebar */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 250px;
+    height: 100vh; /* full viewport height */
+    background-color: #3f51b5;
+    color: white;
+    padding-top: 30px;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+  }
+  
+  .sidebar h2 {
+    text-align: center;
+    margin-bottom: 40px;
+    font-size: 1.5rem;
+  }
+  
+  .sidebar a {
+    display: block;
+    padding: 15px 20px;
+    text-decoration: none;
+    color: white;
+    transition: background-color 0.3s;
+  }
+  
+  .sidebar a:hover {
+    background-color: #5c6bc0;
+  }
+  
+  /* Navbar */
+  .navbar {
+    background-color: #4c8bf5;
+    color: white;
+    padding: 16px;
+    font-size: 1.3rem;
+    font-weight: bold;
+    position: fixed;
+    left: 250px;
+    right: 0;
+    top: 0;
+    z-index: 10;
+    text-align: center;
+  }
+  
+  /* Main content */
+  .content {
+    margin-left: 250px;
+    margin-top: 80px;
+    padding: 30px;
+    width: calc(100% - 250px);
+    overflow-y: auto;
+  }
+  
+  .content h1 {
+    margin-bottom: 30px;
+    color: #3f51b5;
+    font-size: 2rem;
+    font-weight: 600;
+  }
+  
+  /* Section card */
+  .settings-section {
+    background-color: white;
+    border-radius: 12px;
+    padding: 25px 30px;
+    margin-bottom: 30px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    width: 100%;
+;
+  }
+  .settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    align-items: start;
+  }
+  
+  
+  .settings-section h2 {
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  /* Form grid */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+  }
+  
+  .form-group {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  label {
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #555;
+  }
+  
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  select {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 1rem;
+    background-color: #f9f9f9;
+    width: 100%;
+  }
+  
+  input[type="checkbox"] {
+    margin-right: 8px;
+  }
+  
+  /* Notifications layout */
+  .notification-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  /* Buttons */
+  .buttons {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+  
+  .buttons button {
+    padding: 10px 20px;
+    border: none;
+    background-color: #3f51b5;
+    color: white;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+  
+  .buttons button:hover {
+    background-color: #5c6bc0;
+  }
+  
+  /* Responsive fix for mobile */
+  @media (max-width: 768px) {
+    .sidebar {
+      display: none;
+    }
+  
+    .navbar {
+      left: 0;
+    }
+  
+    .content {
+      margin-left: 0;
+      width: 100%;
+    }
+  }
+  

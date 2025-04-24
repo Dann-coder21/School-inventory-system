@@ -1,0 +1,156 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body, .view-items-container {
+  font-family: "Inter", sans-serif;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #e0f7fa, #f1f8ff);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 250px;
+  background-color: #3f51b5;
+  color: white;
+  padding: 30px 0;
+  position: fixed;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 4px 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar h2 {
+  margin-bottom: 30px;
+  font-size: 1.4rem;
+  font-weight: 600;
+  padding: 0 20px;
+}
+
+.sidebar a {
+  color: white;
+  text-decoration: none;
+  padding: 12px 20px;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background-color 0.3s;
+}
+
+.sidebar a:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Navbar */
+.navbar {
+  width: calc(100% - 250px);
+  background-color: #4c8bf5;
+  padding: 15px 30px;
+  color: white;
+  position: fixed;
+  top: 0;
+  left: 250px;
+  z-index: 10;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+/* Content Area */
+.content {
+  margin-left: 250px;
+  margin-top: 70px;
+  padding: 30px;
+  flex: 1;
+  overflow-x: auto;
+}
+
+.content h1 {
+  margin-bottom: 25px;
+  color: #3f51b5;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  min-width: 600px;
+}
+
+th, td {
+  padding: 15px 20px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+th {
+  background-color: #3f51b5;
+  color: white;
+  font-weight: 600;
+}
+
+tr:hover {
+  background-color: #f1f5ff;
+}
+
+.status-available {
+  color: #4caf50;
+}
+
+.status-out-of-stock {
+  color: #f44336;
+}
+
+.back-btn {
+  display: inline-block;
+  margin-top: 25px;
+  padding: 10px 20px;
+  background: #4c8bf5;
+  color: white;
+  text-decoration: none;
+  border-radius: 5px;
+  font-weight: 500;
+  transition: background-color 0.3s;
+}
+
+.back-btn:hover {
+  background: #3b73d1;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s;
+    z-index: 100;
+  }
+  
+  .sidebar.active {
+    transform: translateX(0);
+  }
+  
+  .navbar, .content {
+    width: 100%;
+    margin-left: 0;
+  }
+  
+  .navbar {
+    padding: 15px;
+    text-align: left;
+  }
+  
+  .content {
+    padding: 20px 15px;
+    margin-top: 60px;
+  }
+  
+  table {
+    font-size: 14px;
+  }
+}
