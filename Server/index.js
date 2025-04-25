@@ -5,6 +5,8 @@ import cors from "cors";
 import router from "./routes/authRoutes.js";
 import { connectToDatabase } from "./lib/db.js";
 console.log("Server started");
+
+
 const app = express();
 const PORT = process.env.PORT;
 app.use(cors());
