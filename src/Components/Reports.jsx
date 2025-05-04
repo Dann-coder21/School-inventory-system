@@ -1,7 +1,6 @@
 import React, { useContext } from "react";
 import { Link } from "react-router-dom";
 import { InventoryContext } from "../contexts/InventoryContext";
-import "../Styles/Reports.css";
 import {
   MdDashboard,
   MdInventory,
@@ -64,84 +63,117 @@ const Reports = () => {
   } = calculateReports();
 
   return (
-    <div className="reports-page">
+    <div className="min-h-screen flex flex-col font-inter bg-gradient-to-br from-[#e0f7fa] to-[#f1f8ff]">
       {/* Sidebar */}
-      <div className="sidebar">
-        <h2>Reports</h2>
-        <Link to="/dashboard">
-          <MdDashboard className="icon" /> Dashboard
-        </Link>
-        <Link to="/inventory">
-          <MdInventory className="icon" /> Inventory
-        </Link>
-        <Link to="/AddItemsForm">
-          <MdAddBox className="icon" /> Add Items
-        </Link>
-        <Link to="/viewitems">
-          <MdList className="icon" /> View Items
-        </Link>
-        <Link to="/reports">
-          <MdAssessment className="icon" /> Reports
-        </Link>
-        <Link to="/settings">
-          <MdSettings className="icon" /> Settings
-        </Link>
-      </div>
+      <div className="fixed top-0 left-0 w-[250px] h-screen bg-[#3f51b5] text-white pt-8 flex flex-col z-50">
+             <h2 className="text-center mb-10 text-xl font-semibold">Settings</h2>
+             <Link to="/dashboard" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+               <MdDashboard className="text-xl" /> Dashboard
+             </Link>
+             <Link to="/inventory" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+               <MdInventory className="text-xl" /> Inventory
+             </Link>
+             <Link to="/AddItemsForm" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+               <MdAddBox className="text-xl" /> Add Items
+             </Link>
+             <Link to="/viewitems" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+               <MdList className="text-xl" /> View Items
+             </Link>
+             <Link to="/reports" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+               <MdAssessment className="text-xl" /> Reports
+             </Link>
+             <Link to="/settings" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+               <MdSettings className="text-xl" /> Settings
+             </Link>
+           </div>
 
       {/* Navbar */}
-      <div className="navbar">📈 Inventory Reports</div>
+      <div className="grid grid-cols-3 items-center bg-gradient-to-r from-blue-500 to-indigo-500 text-white h-[70px] px-6 shadow-lg z-40">
+        <div className="flex justify-end"></div>
+        <div className="flex items-center justify-center">
+          <div className="flex items-center">
+            <div className="p-2 bg-white/10 rounded-lg mr-3">
+              <span className="text-xl">📈</span>
+            </div>
+            <span className="text-lg font-bold whitespace-nowrap">
+              Inventory Reports
+            </span>
+          </div>
+        </div>
+        <div></div>
+      </div>
 
-      {/* Content */}
-      <div className="content">
-        <h1>📋 Inventory Summary</h1>
+      {/* Main Content */}
+      <div className="ml-[250px] mt-[70px] p-8 flex-1 min-h-[calc(100vh-70px)] flex flex-col">
+        <h1 className="text-xl font-semibold text-[#3f51b5] mb-4 text-center">
+          📋 Inventory Summary
+        </h1>
 
-        <div className="cards">
-          <div className="card">
-            <h3>Total Items</h3>
-            <p>{totalItems}</p>
-            <small>All items ever in system</small>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-lg shadow-md text-center">
+            <h3 className="text-lg font-semibold text-gray-700">Total Items</h3>
+            <p className="text-2xl font-bold text-[#3f51b5]">{totalItems}</p>
+            <small className="text-gray-500">All items ever in system</small>
           </div>
-          <div className="card">
-            <h3>Available</h3>
-            <p>{availableItems}</p>
-            <small>Currently in stock</small>
+          <div className="bg-white p-6 rounded-lg shadow-md text-center">
+            <h3 className="text-lg font-semibold text-gray-700">Available</h3>
+            <p className="text-2xl font-bold text-[#3f51b5]">
+              {availableItems}
+            </p>
+            <small className="text-gray-500">Currently in stock</small>
           </div>
-          <div className="card">
-            <h3>Out of Stock</h3>
-            <p>{outOfStockItems}</p>
-            <small>Needs restocking</small>
+          <div className="bg-white p-6 rounded-lg shadow-md text-center">
+            <h3 className="text-lg font-semibold text-gray-700">
+              Out of Stock
+            </h3>
+            <p className="text-2xl font-bold text-[#3f51b5]">
+              {outOfStockItems}
+            </p>
+            <small className="text-gray-500">Needs restocking</small>
           </div>
-          <div className="card">
-            <h3>Added This Month</h3>
-            <p>{addedThisMonth}</p>
-            <small>New inventory</small>
+          <div className="bg-white p-6 rounded-lg shadow-md text-center">
+            <h3 className="text-lg font-semibold text-gray-700">
+              Added This Month
+            </h3>
+            <p className="text-2xl font-bold text-[#3f51b5]">
+              {addedThisMonth}
+            </p>
+            <small className="text-gray-500">New inventory</small>
           </div>
         </div>
 
-        <h2>⚠️ Low Stock Items ({lowStockItems.length})</h2>
-        <div className="table-container">
-          <table>
+        <h2 className="text-lg font-semibold text-[#3f51b5] mb-4">
+          ⚠️ Low Stock Items ({lowStockItems.length})
+        </h2>
+        <div className="overflow-x-auto mb-8">
+          <table className="min-w-full bg-white rounded-lg shadow-md">
             <thead>
-              <tr>
-                <th>Item</th>
-                <th>Category</th>
-                <th>Quantity</th>
-                <th>Status</th>
+              <tr className="bg-[#3f51b5] text-white">
+                <th className="py-2 px-4 text-left">Item</th>
+                <th className="py-2 px-4 text-left">Category</th>
+                <th className="py-2 px-4 text-left">Quantity</th>
+                <th className="py-2 px-4 text-left">Status</th>
               </tr>
             </thead>
             <tbody>
               {lowStockItems.length > 0 ? (
                 lowStockItems.map((item, index) => (
-                  <tr key={index}>
-                    <td>{item.itemName}</td>
-                    <td>{item.category}</td>
-                    <td>{item.quantity}</td>
-                    <td className="status-warning">Low Stock</td>
+                  <tr
+                    key={index}
+                    className="border-t border-gray-200 hover:bg-gray-50"
+                  >
+                    <td className="py-2 px-4">{item.itemName}</td>
+                    <td className="py-2 px-4">{item.category}</td>
+                    <td className="py-2 px-4">{item.quantity}</td>
+                    <td className="py-2 px-4 text-red-500">Low Stock</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="4" className="no-items">
+                  <td
+                    colSpan="4"
+                    className="py-4 text-center text-gray-500 italic"
+                  >
                     No low stock items
                   </td>
                 </tr>
@@ -150,33 +182,48 @@ const Reports = () => {
           </table>
         </div>
 
-        <h2>🆕 Recently Added</h2>
-        <div className="table-container">
-          <table>
+        <h2 className="text-lg font-semibold text-[#3f51b5] mb-4">
+          🆕 Recently Added
+        </h2>
+        <div className="overflow-x-auto mb-8">
+          <table className="min-w-full bg-white rounded-lg shadow-md">
             <thead>
-              <tr>
-                <th>Item</th>
-                <th>Category</th>
-                <th>Date Added</th>
-                <th>Quantity</th>
+              <tr className="bg-[#3f51b5] text-white">
+                <th className="py-2 px-4 text-left">Item</th>
+                <th className="py-2 px-4 text-left">Category</th>
+                <th className="py-2 px-4 text-left">Date Added</th>
+                <th className="py-2 px-4 text-left">Quantity</th>
               </tr>
             </thead>
             <tbody>
               {recentlyAdded.map((item, index) => (
-                <tr key={index}>
-                  <td>{item.itemName}</td>
-                  <td>{item.category}</td>
-                  <td>{new Date(item.dateAdded).toLocaleDateString()}</td>
-                  <td>{item.quantity}</td>
+                <tr
+                  key={index}
+                  className="border-t border-gray-200 hover:bg-gray-50"
+                >
+                  <td className="py-2 px-4">{item.itemName}</td>
+                  <td className="py-2 px-4">{item.category}</td>
+                  <td className="py-2 px-4">
+                    {new Date(item.dateAdded).toLocaleDateString()}
+                  </td>
+                  <td className="py-2 px-4">{item.quantity}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        <div className="btns print-hidden">
-          <button onClick={() => window.print()}>🖨️ Print Report</button>
-          <button onClick={() => alert("Export to CSV coming soon!")}>
+        <div className="flex justify-center gap-4 mt-8">
+          <button
+            onClick={() => window.print()}
+            className="bg-[#4c8bf5] hover:bg-[#3b73d1] text-white py-2 px-6 rounded-lg transition-colors duration-300"
+          >
+            🖨️ Print Report
+          </button>
+          <button
+            onClick={() => alert("Export to CSV coming soon!")}
+            className="bg-[#4c8bf5] hover:bg-[#3b73d1] text-white py-2 px-6 rounded-lg transition-colors duration-300"
+          >
             📥 Export CSV
           </button>
         </div>

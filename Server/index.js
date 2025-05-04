@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import cors from "cors";
 import router from "./routes/authRoutes.js";
+import itemsRouter from "./routes/itemsRoutes.js";
 import { connectToDatabase } from "./lib/db.js";
 console.log("Server started");
 
@@ -16,7 +17,15 @@ app.use((req, res, next) => {
   next();
 });
 
+
+
+
 app.use("/auth", router);
+app.use("/items", itemsRouter);
+
+
+
+
 app.get("/dashboard", (req, res) => {
   console.log("req.body");
 });

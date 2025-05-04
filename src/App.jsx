@@ -8,6 +8,7 @@ import Settings from "./Components/Settings";
 import Login from "./Components/Login"; // make sure you have this
 import { useEffect, useState } from "react";
 import SignupForm from "./Components/Signup";
+
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(
     localStorage.getItem("isLoggedIn") === "true"

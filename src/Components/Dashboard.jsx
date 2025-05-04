@@ -1,12 +1,9 @@
 // Dashboard.jsx
-import React, { useContext,useEffect } from "react";
+import React, { useContext, useEffect } from "react";
 import { InventoryContext } from "../contexts/InventoryContext";
 import { Link, useNavigate } from "react-router-dom";
-import "../Styles/Dashboard.css";
-import axios  from  'axios'
+import axios from "axios";
 
-
-// ICON IMPORTS
 import {
   MdDashboard,
   MdInventory,
@@ -26,20 +23,16 @@ const Dashboard = () => {
   const outOfStockCount = items.filter((item) => item.quantity === 0).length;
 
   const handleLogout = () => {
-    // Optional: clear local storage or auth token here
     navigate("/login");
   };
+
   const fetchUser = async () => {
     try {
       const token = localStorage.getItem("token");
-      console.log(token)
       const response = await axios.get("http://localhost:3000/auth/dashboard", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.status !== 201) {
-
         navigate("/login");
       }
     } catch (err) {
@@ -53,80 +46,138 @@ const Dashboard = () => {
   }, []);
 
   return (
-    <>
-      <div className="Full-dashboard">
-        <div className="sidebar">
-          <h2>Dashboard</h2>
-          <Link to="/dashboard">
-            <MdDashboard className="icon" /> Dashboard
-          </Link>
-          <Link to="/inventory">
-            <MdInventory className="icon" /> Inventory
-          </Link>
-          <Link to="/AddItemsForm">
-            <MdAddBox className="icon" /> Add Items
-          </Link>
-          <Link to="/viewitems">
-            <MdList className="icon" /> View Items
-          </Link>
-          <Link to="/reports">
-            <MdAssessment className="icon" /> Reports
-          </Link>
-          <Link to="/settings">
-            <MdSettings className="icon" /> Settings
-          </Link>
-        </div>
-        <div className="navbar">
-          <span>📦 Inventory Dashboard</span>
-          <button className="logout-btn" onClick={handleLogout}>
-            Logout{" "}
-          </button>
-        </div>
-        <div className="dashboard">
-          <h2>📊 Overview</h2>
+    <div className="bg-gradient-to-br from-cyan-100 to-blue-100 flex min-h-screen font-['Inter']">
+      {/* Sidebar */}
+      <div className="w-[250px] bg-[#3f51b5] text-white fixed h-full flex flex-col shadow-lg z-50">
+  {/* Header Section - Centered with increased padding */}
+  <div className="flex flex-col items-center pt-10 px-6 pb-10 mb-6 border-b border-white/10">
+    <div className="p-4 bg-white/10 rounded-xl mb-4"> {/* Increased padding and rounded-xl */}
+      <span className="text-3xl">📊</span> {/* Larger icon */}
+    </div>
+    <h2 className="text-2xl font-bold text-center">Inventory Pro</h2> {/* Larger text */}
+    <p className="text-white/70 text-base mt-2 text-center">Management Console</p> {/* Larger text */}
+  </div>
 
-          <div className="cards">
-            <div
-              className="card clickable"
-              onClick={() => navigate("/viewitems")}
-            >
-              <h3>Total Items</h3>
-              <p>{items.length}</p>
-            </div>
-            <div
-              className="card clickable"
-              onClick={() => navigate("/viewitems")}
-            >
-              <h3>Low Stock</h3>
-              <p>{lowStockCount}</p>
-            </div>
-            <div
-              className="card clickable"
-              onClick={() => navigate("/viewitems")}
-            >
-              <h3>Out of Stock</h3>
-              <p>{outOfStockCount}</p>
-            </div>
-            <div
-              className="card clickable"
-              onClick={() => navigate("/inventory")}
-            >
-              <h3>Recently Added</h3>
-              <p>{items.slice(-5).length} Items</p>
-            </div>
-          </div>
+  {/* Navigation Links - Centered with increased padding */}
+  <div className="flex flex-col items-center px-6 gap-2 mb-8"> {/* Increased side padding */}
+    <div className="h-8"></div> {/* Larger spacer */}
+<Link to="/dashboard" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+             <MdDashboard className="text-xl" /> Dashboard
+           </Link>
+           <Link to="/inventory" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+             <MdInventory className="text-xl" /> Inventory
+           </Link>
+           <Link to="/AddItemsForm" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+             <MdAddBox className="text-xl" /> Add Items
+           </Link>
+           <Link to="/viewitems" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+             <MdList className="text-xl" /> View Items
+           </Link>
+           <Link to="/reports" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+             <MdAssessment className="text-xl" /> Reports
+           </Link>
+           <Link to="/settings" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+             <MdSettings className="text-xl" /> Settings
+           </Link>
+  </div>
 
-          <div className="action-buttons">
-            <button onClick={() => navigate("/AddItemsForm")}>
-              Add New Item
-            </button>
-            <button onClick={() => navigate("/reports")}>
-              Generate Report
-            </button>
-          </div>
-        </div>
+  {/* Bottom spacer - increased padding */}
+  <div className="mt-auto pb-10"></div>
+</div>
+      {/* Main Section */}
+      <div className="flex-1 ml-[250px] flex flex-col">
+      <div className="grid grid-cols-3 items-center bg-gradient-to-r from-blue-500 to-indigo-500 text-white h-[70px] fixed top-0 left-[250px] right-0 shadow-lg z-40">
+  {/* Left Section - Title */}
+  <div className="flex justify-center">
+    <span className="text-2xl font-bold tracking-wide flex items-center gap-3">
+      <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center">📦</div>
+      <span>Inventory Dashboard</span>
+    </span>
+  </div>
+
+  {/* Middle Section - Spacer */}
+  <div className="flex-1"></div>
+
+  {/* Right Section - Button Centered in its Grid */}
+  <div className="flex items-center justify-center pr-3 h-full"> {/* Changed to justify-center */}
+    <button
+      className="logout-btn inline-flex items-center justify-center gap-3 bg-red-600 hover:bg-red-700 text-white py-4 px-6 rounded-[7px] text-sm font-medium transition-all duration-300 hover:shadow-md active:scale-95 border border-red-700 focus:outline-none focus:ring-2 focus:ring-red-300 min-w-[160px] h-12"
+      onClick={handleLogout}
+    >
+      <svg 
+        xmlns="http://www.w3.org/2000/svg" 
+        className="size-5"
+        fill="none" 
+        viewBox="0 0 24 24" 
+        stroke="currentColor"
+      >
+        <path 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          strokeWidth={2} 
+          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" 
+        />
+      </svg>
+      Logout
+    </button>
+  </div>
+</div>
+
+        {/* Dashboard content */}
+ <div className="pt-10 px-6 py-8 w-full flex justify-center">
+  <div className="w-full max-w-[1200px] flex flex-col gap-20">
+    {/* Header */}
+    <h2 className="text-2xl font-semibold">📊 Overview</h2>
+
+    {/* Cards Section */}
+    {/* Cards Section */}
+<div className="flex flex-wrap justify-between gap-5">
+  {[
+    { title: "Total Items", value: items.length },
+    { title: "Low Stock", value: lowStockCount },
+    { title: "Out of Stock", value: outOfStockCount },
+    { title: "Recently Added", value: `${items.slice(-5).length} Items` }
+  ].map((card, index) => (
+    <div
+      key={index}
+      onClick={() => navigate("/viewitems")}
+      className="bg-white flex-1 min-w-[220px] h-[180px] p-5 rounded-xl shadow-md text-center transition-transform duration-300 hover:-translate-y-1.5 hover:shadow-xl cursor-pointer flex flex-col justify-center"
+    >
+      <h3 className="text-2xl text-gray-700 font-semibold mb-2">{card.title}</h3>
+      <p className="text-lg text-gray-600">{card.value}</p>
+    </div>
+  ))}
+</div>
+
+
+    {/* Action Buttons Section */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-2xl mx-auto px-4">
+      <button
+        className="group relative bg-white overflow-hidden rounded-2xl p-px transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/30"
+        onClick={() => navigate("/AddItemsForm")}
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
+        <div className="relative flex items-center justify-center gap-3 bg-gradient-to-br from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white py-5 px-10 rounded-2xl transition-all duration-300 hover:scale-[1.02] h-14 min-h-[56px]">
+  <span className="text-2xl">➕</span>
+  <span className="font-semibold text-lg">Add New Item</span>
+</div>
+      </button>
+
+      <button
+        className="group relative bg-white overflow-hidden rounded-2xl p-px transition-all duration-300 hover:shadow-2xl hover:shadow-pink-500/30"
+        onClick={() => navigate("/reports")}
+      >
+        <div className="relative flex items-center justify-center gap-3 bg-gradient-to-br from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white py-4 px-10 rounded-2xl transition-all duration-300 hover:scale-[1.02] h-14 min-h-[56px]">
+  <span className="text-2xl">📊</span>
+  <span className="font-semibold text-lg">Generate Report</span>
+</div>
+      </button>
+    </div>
+  </div>
+</div>
+
       </div>
-    </>
+    </div>
   );
 };
 
