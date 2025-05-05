@@ -28,10 +28,15 @@ function Inventory() {
 
   // Add this useEffect hook before your other state declarations
   useEffect(() => {
-    fetchItems(); // Load data when component mounts
+    console.log("Fetching items...");
+    fetchItems().catch(err => {
+      console.error("Error fetching items:", err);
+    });
   }, [fetchItems]);
-
   
+  // Add this after the useContext line
+  console.log("Inventory context values:", { items, loading, error });
+
   if (error) return (
     <div className="text-center p-8 text-red-500">
       Error: {error}
@@ -49,12 +54,18 @@ function Inventory() {
   
 
 
-  const filteredItems = items.filter(
-    (item) =>
-      item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.status.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredItems = items.filter((item) => {
+    // Safely handle potentially undefined properties
+    const itemName = item.itemName ? item.itemName.toLowerCase() : '';
+    const category = item.category ? item.category.toLowerCase() : '';
+    const status = item.status ? item.status.toLowerCase() : '';
+    
+    return (
+      itemName.includes(searchTerm.toLowerCase()) ||
+      category.includes(searchTerm.toLowerCase()) ||
+      status.includes(searchTerm.toLowerCase())
+    );
+  });
 
   const handleDelete = () => {
     if (itemToDelete !== null) {
