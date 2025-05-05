@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useState, useEffect} from "react";
 import "../Styles/Inventory.css"
 import { Link } from "react-router-dom";
 import { InventoryContext } from "../contexts/InventoryContext";
@@ -21,15 +21,31 @@ function Inventory() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [showActions, setShowActions] = useState(null);
-  const { items, setItems, loading, fetchItems } = useContext(InventoryContext);
+  const { items, setItems, loading, error, fetchItems } = useContext(InventoryContext);
   
+
+  // Add this right before your loading check
+
   // Add this useEffect hook before your other state declarations
   useEffect(() => {
     fetchItems(); // Load data when component mounts
   }, [fetchItems]);
 
-  // Add loading state check before rendering
+  
+  if (error) return (
+    <div className="text-center p-8 text-red-500">
+      Error: {error}
+      <button 
+        onClick={fetchItems} 
+        className="ml-4 bg-blue-500 text-white px-4 py-2 rounded"
+      >
+        Retry
+      </button>
+    </div>
+  );
+  
   if (loading) return <div className="flex justify-center items-center h-screen">Loading inventory...</div>;
+    
   
 
 

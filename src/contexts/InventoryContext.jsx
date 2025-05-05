@@ -1,10 +1,12 @@
 import React, { createContext, useState, useEffect } from "react";
+import axios from "axios";
 
 export const InventoryContext = createContext();
 
 export const InventoryProvider = ({ children }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Fetch items from backend on load
   const fetchItems = async () => {
@@ -14,7 +16,9 @@ export const InventoryProvider = ({ children }) => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setItems(response.data);
+      setError(null);
     } catch (err) {
+      setError(err.response?.data?.message || "Failed to fetch items");
       console.error("Failed to fetch items:", err);
     } finally {
       setLoading(false);

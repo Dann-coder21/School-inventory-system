@@ -5,6 +5,9 @@ import addItem from "../controllers/itemController.js"; // Import the addItem fu
 
 const itemsRouter = express.Router();
 
+
+
+
 // Define verifyToken middleware directly in the file
 const verifyToken = async (req, res, next) => {
   try {
@@ -21,8 +24,9 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
+itemsRouter.post("/inventory", addItem);
+
 // Routes
-itemsRouter.post("/inventory", verifyToken, addItem);
 
 itemsRouter.get("/inventory", verifyToken, async (req, res) => {
   try {
