@@ -26,44 +26,31 @@ function Inventory() {
 
   // Add this right before your loading check
 
-  // Add this useEffect hook before your other state declarations
   useEffect(() => {
-    console.log("Fetching items...");
-    fetchItems().catch(err => {
-      console.error("Error fetching items:", err);
-    });
+
+ 
+   
+   
   }, [fetchItems]);
   
-  // Add this after the useContext line
-  console.log("Inventory context values:", { items, loading, error });
-
-  if (error) return (
-    <div className="text-center p-8 text-red-500">
-      Error: {error}
-      <button 
-        onClick={fetchItems} 
-        className="ml-4 bg-blue-500 text-white px-4 py-2 rounded"
-      >
-        Retry
-      </button>
-    </div>
-  );
-  
-  if (loading) return <div className="flex justify-center items-center h-screen">Loading inventory...</div>;
     
   
 
-
+  console.log(items)
   const filteredItems = items.filter((item) => {
     // Safely handle potentially undefined properties
-    const itemName = item.itemName ? item.itemName.toLowerCase() : '';
+    const itemName = item.item_name ? item.item_name.toLowerCase() : '';
     const category = item.category ? item.category.toLowerCase() : '';
     const status = item.status ? item.status.toLowerCase() : '';
-    
+    const dateAdded = item.date_added 
+      ? new Date(item.date_added).toLocaleDateString().toLowerCase() 
+      : '';
+  
     return (
       itemName.includes(searchTerm.toLowerCase()) ||
       category.includes(searchTerm.toLowerCase()) ||
-      status.includes(searchTerm.toLowerCase())
+      status.includes(searchTerm.toLowerCase()) ||
+      dateAdded.includes(searchTerm.toLowerCase())
     );
   });
 
@@ -245,12 +232,12 @@ function Inventory() {
         <tbody>
           {filteredItems.map((item, index) => (
             <tr
-              key={index}
+              key={item.id}
               className={`hover:bg-gray-100 ${
                 activeRow === index ? "bg-blue-100" : ""
               }`}
             >
-              <td className="py-2 px-3 border-b">{item.itemName}</td>
+              <td className="py-2 px-3 border-b">{item.item_name}</td>
               <td className="py-2 px-3 border-b">{item.category}</td>
               <td className="py-2 px-3 border-b">{item.quantity}</td>
               <td
@@ -265,7 +252,7 @@ function Inventory() {
                 {item.status}
               </td>
               <td className="py-2 px-3 border-b">
-                {new Date(item.dateAdded).toLocaleDateString()}
+                {new Date(item.date_added).toLocaleDateString()}
                 </td>
                 <td className="py-2 px-3 border-b w-[220px] align-top">
   {/* Ellipsis button for actions */}

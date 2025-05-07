@@ -8,48 +8,85 @@ export const InventoryProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch items from backend on load
   const fetchItems = async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get("http://localhost:3000/items/inventory", {
-        headers: { Authorization: `Bearer ${token}` }
+      if (!token) throw new Error('No authentication token found');
+
+      // 1. Fetch from database
+      const { data } = await axios.get("http://localhost:3000/items/inventory", {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 5000
       });
-      setItems(response.data);
-      setError(null);
+
+      // 2. Update state and cache
+      setItems(data);
+      localStorage.setItem('inventoryData', JSON.stringify({
+        data,
+        lastUpdated: new Date().toISOString()
+      }));
+
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to fetch items");
-      console.error("Failed to fetch items:", err);
+      console.error("Fetch error:", err);
+      setError(err.message);
+      
+      // 3. Fallback to cache if available
+      try {
+        const cache = localStorage.getItem('inventoryData');
+        if (cache) {
+          const parsed = JSON.parse(cache);
+          if (parsed.data) setItems(parsed.data);
+        }
+      } catch (cacheError) {
+        console.error("Cache read error:", cacheError);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Initial fetch
+  // Initial data load
   useEffect(() => {
     fetchItems();
   }, []);
 
-  // Add item (now syncs with backend)
   const addItem = async (newItem) => {
     try {
       const token = localStorage.getItem('token');
+      if (!token) throw new Error('No authentication token');
+
+      // 1. Send to backend
       const response = await axios.post(
         "http://localhost:3000/items/inventory",
         newItem,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { 
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 5000
+        }
       );
+
+      // 2. Refresh data from server
+      await fetchItems();
       
-      // Update state with the new item from backend
-      setItems(prev => [...prev, response.data.item]);
+      return response.data.item;
+
     } catch (err) {
-      console.error("Failed to add item:", err);
-      throw err; // Let the form handle the error
+      console.error('Add item error:', err);
+      throw err;
     }
   };
 
   return (
-    <InventoryContext.Provider value={{ items, loading, addItem, fetchItems }}>
+    <InventoryContext.Provider value={{ 
+      items, 
+      loading, 
+      error, 
+      addItem, 
+      fetchItems 
+    }}>
       {children}
     </InventoryContext.Provider>
   );

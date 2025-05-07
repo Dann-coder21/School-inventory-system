@@ -2,7 +2,8 @@ import { connectToDatabase } from "../lib/db.js";
 
 const addItem = async (req, res) => {
   const { itemName, category, quantity, location, dateAdded, status } = req.body;
-  const userId = req.userId; // From verifyToken middleware
+  const userId = req.userId; // From verifyToken middleware]
+  console.log("User ID from token:", userId); // Debugging line
 
   try {
     const db = await connectToDatabase();

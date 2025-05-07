@@ -24,17 +24,20 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
-itemsRouter.post("/inventory", addItem);
+itemsRouter.post("/inventory",verifyToken, addItem);
 
 // Routes
 
 itemsRouter.get("/inventory", verifyToken, async (req, res) => {
+  console.log("User ID from token:", req.userId); // Debugging line
   try {
     const db = await connectToDatabase();
     const [items] = await db.query(
       "SELECT * FROM inventory_items WHERE user_id = ?",
       [req.userId]
     );
+
+    console.log("Fetched items:", items); // Debugging line
     res.status(200).json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });

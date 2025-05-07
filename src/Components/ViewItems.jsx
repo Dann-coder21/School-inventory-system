@@ -85,7 +85,7 @@ const ViewItems = () => {
       ) : (
         items.map((item, index) => (
           <tr key={index} className="hover:bg-gray-50">
-            <td className="py-2 px-6 text-sm border-t border-gray-100">{item.itemName}</td>
+            <td className="py-2 px-6 text-sm border-t border-gray-100">{item.item_name}</td>
             <td className="py-2 px-6 text-sm border-t border-gray-100">{item.category}</td>
             <td className="py-2 px-6 text-sm border-t border-gray-100">{item.quantity}</td>
             <td className="py-2 px-6 text-sm border-t border-gray-100">
