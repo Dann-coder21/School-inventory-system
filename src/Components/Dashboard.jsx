@@ -3,6 +3,9 @@ import React, { useContext, useEffect } from "react";
 import { InventoryContext } from "../contexts/InventoryContext";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
+
 
 import {
   MdDashboard,
@@ -22,9 +25,34 @@ const Dashboard = () => {
   ).length;
   const outOfStockCount = items.filter((item) => item.quantity === 0).length;
 
-  const handleLogout = () => {
-    navigate("/login");
-  };
+ const handleLogout = () => {
+  Swal.fire({
+    title: 'Logout Confirmation',
+    text: 'Are you sure you want to logout?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Yes, logout',
+    cancelButtonText: 'Cancel',
+    background: 'rgba(255, 255, 255, 0.95)', // Slight translucent white
+    backdrop: `
+      rgba(0, 0, 0, 0.5)
+      left top
+      no-repeat
+    `,
+    customClass: {
+      popup: 'rounded-xl shadow-xl',
+      confirmButton: 'bg-red-600 text-white px-4 py-2 rounded-md',
+      cancelButton: 'bg-gray-200 text-black px-4 py-2 rounded-md',
+    },
+  }).then((result) => {
+    if (result.isConfirmed) {
+      navigate("/login");
+    }
+  });
+};
+
 
   const fetchUser = async () => {
     try {
