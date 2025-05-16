@@ -6,6 +6,9 @@ import router from "./routes/authRoutes.js";
 import itemsRouter from "./routes/itemsRoutes.js";
 import { connectToDatabase } from "./lib/db.js";
 import withdrawRouter from "./routes/withdrawRoutes.js";
+import addStockRouter from "./routes/addStockRoute.js";
+import deleteItemRouter from "./routes/deleteItemRoute.js";
+
 console.log("Server started");
 
 
@@ -24,6 +27,8 @@ app.use((req, res, next) => {
 app.use("/auth", router);
 app.use("/items", itemsRouter);
 app.use('/withdrawals', withdrawRouter);
+app.use('/stock', addStockRouter); 
+app.use('/delete', deleteItemRouter);
 
 
 

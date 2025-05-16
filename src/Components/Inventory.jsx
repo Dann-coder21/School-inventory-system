@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect} from "react";
+import React, { useContext, useState, useEffect, useMemo} from "react";
 import "../Styles/Inventory.css"
 import { Link } from "react-router-dom";
 import { InventoryContext } from "../contexts/InventoryContext";
@@ -12,6 +12,7 @@ import {
 } from "react-icons/md";
 import axios from "axios";
 import Swal from "sweetalert2";
+import LoadingSpinner from "../Components/LoadingSpinner";
 
 
 function Inventory() {
@@ -26,6 +27,11 @@ function Inventory() {
   const [showActions, setShowActions] = useState(null);
   const { items, setItems, loading, error, fetchItems, updateItems } = useContext(InventoryContext);
 
+
+const [sortConfig, setSortConfig] = useState({
+    key: null,
+    direction: 'ascending'
+  });
 
   // Add this right before your loading check
 
@@ -42,31 +48,123 @@ function Inventory() {
 
   console.log(items)
   const filteredItems = items.filter((item) => {
-    // Safely handle potentially undefined properties
-    const itemName = item.item_name ? item.item_name.toLowerCase() : '';
-    const category = item.category ? item.category.toLowerCase() : '';
-    const status = item.status ? item.status.toLowerCase() : '';
-    const dateAdded = item.date_added 
-      ? new Date(item.date_added).toLocaleDateString().toLowerCase() 
-      : '';
+  if (!searchTerm) return true; // Show all items when no search term
   
-    return (
-      itemName.includes(searchTerm.toLowerCase()) ||
-      category.includes(searchTerm.toLowerCase()) ||
-      status.includes(searchTerm.toLowerCase()) ||
-      dateAdded.includes(searchTerm.toLowerCase())
-    );
-  });
+  const searchLower = searchTerm.toLowerCase();
+  
+  return (
+    (item.item_name?.toLowerCase() || '').includes(searchLower) ||
+    (item.category?.toLowerCase() || '').includes(searchLower) ||
+    (item.status?.toLowerCase() || '').includes(searchLower) ||
+    (item.date_added && new Date(item.date_added).toLocaleDateString().toLowerCase().includes(searchLower)) ||
+    (item.quantity?.toString() || '').includes(searchTerm) // Search quantity as string
+  );
+});
 
-  const handleDelete = () => {
-    if (itemToDelete !== null) {
-      const updatedItems = [...items];
-      updatedItems.splice(itemToDelete, 1);
-      setItems(updatedItems);
-      setShowDeleteModal(false);
-      setItemToDelete(null);
+const sortedItems = useMemo(() => {
+    let sortableItems = [...filteredItems];
+    if (sortConfig.key) {
+      sortableItems.sort((a, b) => {
+        let valueA = a[sortConfig.key];
+        let valueB = b[sortConfig.key];
+        
+        if (sortConfig.key === 'date_added') {
+          valueA = new Date(valueA);
+          valueB = new Date(valueB);
+        }
+        
+        if (valueA == null) return sortConfig.direction === 'ascending' ? 1 : -1;
+        if (valueB == null) return sortConfig.direction === 'ascending' ? -1 : 1;
+        
+        if (valueA < valueB) return sortConfig.direction === 'ascending' ? -1 : 1;
+        if (valueA > valueB) return sortConfig.direction === 'ascending' ? 1 : -1;
+        return 0;
+      });
     }
-  };
+    return sortableItems;
+  }, [filteredItems, sortConfig]);
+
+
+const handleDelete = async () => {
+  if (itemToDelete === null) return;
+  const item = items[itemToDelete];
+  let deleteSuccessful = false;
+
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("No authentication token");
+
+    // 1. Confirmation dialog
+    const { isConfirmed } = await Swal.fire({
+      title: `Delete ${item.item_name}?`,
+      text: "This cannot be undone",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!isConfirmed) return;
+
+    // 2. Show loading state
+    const swalInstance = Swal.fire({
+      title: "Deleting...",
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    // 3. API call
+    await axios.delete(`http://localhost:3000/delete/items/${item.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 5000,
+    });
+    deleteSuccessful = true;
+
+    // 4. Optimistic UI update only
+    setItems(prev => prev.filter(i => i.id !== item.id));
+    updateItems(items.filter(i => i.id !== item.id));
+
+    // 5. Success notification
+    await Swal.fire({
+      icon: "success",
+      title: "Deleted!",
+      text: `${item.item_name} was removed`,
+      timer: 2000,
+      showConfirmButton: false,
+    });
+
+  } catch (error) {
+    console.error("Delete error:", error);
+    
+    if (error.response?.status === 401) {
+      handleSessionExpired();
+    } else {
+      await Swal.fire({
+        icon: deleteSuccessful ? "warning" : "error",
+        title: deleteSuccessful ? "Sync Issue" : "Delete Failed",
+        text: deleteSuccessful 
+          ? "Item was deleted but may still show. Refreshing..."
+          : "Failed to delete item. Please try again.",
+      });
+      
+      // Only refresh if we know delete succeeded
+      if (deleteSuccessful) {
+        await fetchItems();
+      }
+    }
+  } finally {
+    Swal.close();
+    setShowDeleteModal(false);
+    setItemToDelete(null);
+  }
+};
+
+// Helper function
+const handleSessionExpired = () => {
+  localStorage.removeItem("token");
+  window.location.href = "/login";
+};
+
 const handleWithdraw = async (index, recipientName, quantity) => {
   if (!recipientName || !quantity || quantity <= 0) {
     Swal.fire({
@@ -146,36 +244,87 @@ const handleWithdraw = async (index, recipientName, quantity) => {
   }
 };
 
-  const handleAddStock = (index, quantity) => {
-    // Convert quantity to number if it's a string
-    const quantityToAdd = Number(quantity);
-    
-    if (!quantityToAdd || quantityToAdd <= 0) {
-      alert("Please enter a valid quantity to add.");
+  const handleAddStock = async (index, quantity) => {
+  // Convert quantity to number if it's a string
+  const quantityToAdd = Number(quantity);
+  
+  if (!quantityToAdd || quantityToAdd <= 0) {
+    Swal.fire({
+      icon: "warning",
+      title: "Invalid Input",
+      text: "Please enter a valid quantity to add.",
+    });
+    return;
+  }
+
+  const item = items[index];
+
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      Swal.fire({
+        icon: "error",
+        title: "Session Expired",
+        text: "Please login again.",
+      }).then(() => {
+        window.location.href = "/login";
+      });
       return;
     }
-  
-    const updatedItems = [...items];
-    // Ensure we're adding numbers, not concatenating strings
-    updatedItems[index].quantity += quantityToAdd;
-    
-    updatedItems[index].status =
-      updatedItems[index].quantity === 0
-        ? "Out of Stock"
-        : updatedItems[index].quantity < 5
-        ? "Low Stock"
-        : "Available";
-  
-    setItems(updatedItems);
+
+    // Send API request to update stock
+    const response = await axios.put(
+      `http://localhost:3000/stock/${item.id}/add-stock`,
+      { quantity: quantityToAdd },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    // Update local state with the response data
+    updateItems(items.map(i => 
+      i.id === item.id ? response.data.updatedItem : i
+    ));
+
+    // Reset UI states
     setAddStockInfo((prev) => ({
       ...prev,
       [index]: "",
     }));
     setActiveAddRow(null);
-  };
+
+    // Show success notification
+    await Swal.fire({
+      icon: "success",
+      title: "Stock Updated",
+      text: `Added ${quantityToAdd} to ${item.item_name}`,
+      timer: 2000,
+      showConfirmButton: false,
+    });
+
+  } catch (error) {
+    console.error("Add stock error:", error);
+
+    if (error.response?.status === 401) {
+      Swal.fire({
+        icon: "error",
+        title: "Session Expired",
+        text: "Please login again.",
+      }).then(() => {
+        localStorage.removeItem("token");
+        window.location.href = "/login";
+      });
+    } else {
+      Swal.fire({
+        icon: "error",
+        title: "Update Failed",
+        text: error.response?.data?.error || "Failed to update stock",
+      });
+    }
+  }
+};
+
   return (
     <>
-    <div> welcome </div>
+   
   <div className="fixed top-0 left-0 w-[250px] h-screen bg-[#3f51b5] text-white pt-8 flex flex-col z-50">
          <h2 className="text-center mb-10 text-xl font-semibold">Inventory</h2>
          <Link to="/dashboard" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
@@ -205,11 +354,13 @@ const handleWithdraw = async (index, recipientName, quantity) => {
   {/* First Grid - Empty but keeps space (matches your second example) */}
   <div className="flex justify-end">
     <div className="relative w-[240px]">
-      <input
-        type="text"
-        placeholder="🔍 Search inventory..."
-        className="w-full py-2 px-4 rounded-xl bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-300 text-sm"
-      />
+     <input
+  type="text"
+  placeholder="🔍 Search inventory..."
+  className="w-full py-2 px-4 rounded-xl bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-300 text-sm"
+  value={searchTerm} // Connect to state
+  onChange={(e) => setSearchTerm(e.target.value)} // Update state
+/>
     </div>
   </div>
 
@@ -247,35 +398,108 @@ const handleWithdraw = async (index, recipientName, quantity) => {
 </Link>
   </div>
 
-  {filteredItems.length === 0 ? (
+{loading ? (
+    <div className="flex justify-center items-center min-h-[300px]">
+      <LoadingSpinner />
+    </div>
+  ) : filteredItems.length === 0 ? (
     <div className="text-center p-12 bg-white rounded-lg shadow-md">
       <p className="mb-5 text-gray-600">
         {items.length === 0
-          ? "No items in inventory yet."
+          ? (
+            <div className="flex flex-col items-center">
+              <svg className="w-16 h-16 text-purple-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              <span className="text-lg font-medium text-gray-700">Your inventory is empty</span>
+              <p className="text-gray-500 mt-2">Get started by adding your first item</p>
+            </div>
+          )
           : "No items match your search."}
       </p>
       <Link
         to="/AddItemsForm"
-        className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded transition"
+        className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-500 text-white rounded-lg hover:from-purple-700 hover:to-blue-600 transition-all"
       >
+        <MdAddBox className="mr-2" />
         {items.length === 0 ? "Add Your First Item" : "Add New Item"}
       </Link>
     </div>
   ) : (
     <div className="bg-white rounded-md shadow-md overflow-hidden">
       <table className="w-full border-collapse text-[0.8rem]">
-        <thead className="bg-gray-100 text-gray-700 text-[0.75rem] uppercase">
+               <thead className="bg-[#1e3a8a] text-white text-[0.75rem] uppercase">
           <tr>
-            <th className="py-2 px-3 text-left border-b">Item Name</th>
-            <th className="py-2 px-3 text-left border-b">Category</th>
-            <th className="py-2 px-3 text-left border-b">Quantity</th>
-            <th className="py-2 px-3 text-left border-b">Status</th>
-            <th className="py-2 px-3 text-left border-b">Date Added</th>
+            <th 
+              className="py-3 px-4 text-left border-b border-[#3b82f6] cursor-pointer hover:bg-[#2563eb] transition-colors"
+              onClick={() => requestSort('item_name')}
+            >
+              <div className="flex items-center">
+                Item Name
+                {sortConfig.key === 'item_name' && (
+                  <span className="ml-1">
+                    {sortConfig.direction === 'ascending' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
+            <th 
+              className="py-3 px-4 text-left border-b border-[#3b82f6] cursor-pointer hover:bg-[#2563eb] transition-colors "
+              onClick={() => requestSort('category')}
+            >
+              <div className="flex items-center">
+                Category
+                {sortConfig.key === 'category' && (
+                  <span className="ml-1">
+                    {sortConfig.direction === 'ascending' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
+            <th 
+              className="py-3 px-4 text-left border-b border-[#3b82f6] cursor-pointer hover:bg-[#2563eb] transition-colors "
+              onClick={() => requestSort('quantity')}
+            >
+              <div className="flex items-center">
+                Quantity
+                {sortConfig.key === 'quantity' && (
+                  <span className="ml-1">
+                    {sortConfig.direction === 'ascending' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
+            <th 
+              className="py-3 px-4 text-left border-b border-[#3b82f6] cursor-pointer hover:bg-[#2563eb] transition-colors "
+              onClick={() => requestSort('status')}
+            >
+              <div className="flex items-center">
+                Status
+                {sortConfig.key === 'status' && (
+                  <span className="ml-1">
+                    {sortConfig.direction === 'ascending' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
+            <th 
+              className="ppy-3 px-4 text-left border-b border-[#3b82f6] cursor-pointer hover:bg-[#2563eb] transition-colors "
+              onClick={() => requestSort('date_added')}
+            >
+              <div className="flex items-center">
+                Date Added
+                {sortConfig.key === 'date_added' && (
+                  <span className="ml-1">
+                    {sortConfig.direction === 'ascending' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
             <th className="py-2 px-3 text-left border-b">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {filteredItems.map((item, index) => (
+          {sortedItems.map((item, index) => (  // Changed from filteredItems to sortedItems
             <tr
               key={item.id}
               className={`hover:bg-gray-100 ${
@@ -285,17 +509,21 @@ const handleWithdraw = async (index, recipientName, quantity) => {
               <td className="py-2 px-3 border-b">{item.item_name}</td>
               <td className="py-2 px-3 border-b">{item.category}</td>
               <td className="py-2 px-3 border-b">{item.quantity}</td>
-              <td
-                className={`py-2 px-3 border-b font-semibold ${
-                  item.status.toLowerCase() === "available"
-                    ? "text-green-500"
-                    : item.status.toLowerCase() === "low stock"
-                    ? "text-orange-400"
-                    : "text-red-500"
-                }`}
-              >
-                {item.status}
-              </td>
+             <td
+  className={`py-2 px-3 border-b font-semibold ${
+    item.quantity === 0
+      ? "text-red-500"
+      : item.quantity < 5
+      ? "text-orange-400"
+      : "text-green-500"
+  }`}
+>
+  {item.quantity === 0
+    ? "Out of Stock"
+    : item.quantity < 5
+    ? "Low Stock"
+    : "Available"}
+</td>
               <td className="py-2 px-3 border-b">
                 {new Date(item.date_added).toLocaleDateString()}
                 </td>

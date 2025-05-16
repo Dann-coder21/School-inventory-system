@@ -41,9 +41,9 @@ withdrawRouter.post("/withdraw", verifyToken, async (req, res) => {
     conn = await connectToDatabase();
     await conn.beginTransaction();
 
-    // 1. Verify item exists and check quantity (WITHOUT user_id check)
+    // 1. Get item details (including name)
     const [itemRows] = await conn.query(
-      "SELECT quantity FROM inventory_items WHERE id = ? FOR UPDATE",
+      "SELECT id, item_name, quantity FROM inventory_items WHERE id = ? FOR UPDATE",
       [item_id]
     );
     
@@ -51,15 +51,15 @@ withdrawRouter.post("/withdraw", verifyToken, async (req, res) => {
       throw new Error("Item not found");
     }
 
-    const currentQty = itemRows[0].quantity;
-    if (quantity > currentQty) {
+    const item = itemRows[0];
+    if (quantity > item.quantity) {
       throw new Error("Insufficient stock");
     }
 
-    // 2. Record withdrawal (without user_id if your schema doesn't have it)
+    // 2. Record withdrawal with item name
     await conn.query(
-      "INSERT INTO withdrawals (item_id, withdrawn_by, quantity) VALUES (?, ?, ?)",
-      [item_id, withdrawn_by, quantity]
+      "INSERT INTO withdrawals (item_id, item_name, withdrawn_by, quantity) VALUES (?, ?, ?, ?)",
+      [item_id, item.item_name, withdrawn_by, quantity]
     );
     
     // 3. Update inventory
@@ -78,13 +78,23 @@ withdrawRouter.post("/withdraw", verifyToken, async (req, res) => {
     
     res.status(200).json({ 
       message: "Withdrawal successful",
-      updatedItem: updatedItem[0]
+      updatedItem: updatedItem[0],
+      withdrawalDetails: {
+        itemId: item_id,
+        itemName: item.item_name,
+        quantity,
+        withdrawnBy: withdrawn_by,
+        timestamp: new Date().toISOString()
+      }
     });
 
   } catch (error) {
     console.error("Withdrawal error:", error);
     if (conn) await conn.rollback();
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: error.message,
+      details: "Failed to process withdrawal" 
+    });
   } finally {
     if (conn) await conn.end();
   }

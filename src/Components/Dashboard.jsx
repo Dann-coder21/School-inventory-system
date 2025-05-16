@@ -100,7 +100,7 @@ const fetchUser = async () => {
   }, []);
 
   return (
-    <div className="bg-gradient-to-br from-cyan-100 to-blue-100 flex min-h-screen font-['Inter']">
+    <div className="bg-gradient-to-br from-cyan-100 to-blue-100 flex min-h-screen ">
       {/* Sidebar */}
       <div className="w-[250px] bg-[#3f51b5] text-white fixed h-full flex flex-col shadow-lg z-50">
   {/* Header Section - Centered with increased padding */}
@@ -114,26 +114,27 @@ const fetchUser = async () => {
 
   {/* Navigation Links - Centered with increased padding */}
   <div className="fixed top-0 left-0 w-[250px] h-screen bg-[#3f51b5] text-white pt-8 flex flex-col z-50">
-          <h2 className="text-center mb-10 text-xl font-semibold">Dashboard</h2>
-          <Link to="/dashboard" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-            <MdDashboard className="text-xl" /> Dashboard
-          </Link>
-          <Link to="/inventory" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-            <MdInventory className="text-xl" /> Inventory
-          </Link>
-          <Link to="/AddItemsForm" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-            <MdAddBox className="text-xl" /> Add Items
-          </Link>
-          <Link to="/viewitems" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-            <MdList className="text-xl" /> View Items
-          </Link>
-          <Link to="/reports" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-            <MdAssessment className="text-xl" /> Reports
-          </Link>
-          <Link to="/settings" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-            <MdSettings className="text-xl" /> Settings
-          </Link>
-        </div>
+           <h2 className="text-center mb-10 text-xl font-semibold">Dashboard</h2>
+           <Link to="/dashboard" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+             <MdDashboard className="text-xl" /> Dashboard
+           </Link>
+           <Link to="/inventory" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+             <MdInventory className="text-xl" /> Inventory
+           </Link>
+           <Link to="/AddItemsForm" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+             <MdAddBox className="text-xl" /> Add Items
+           </Link>
+           <Link to="/viewitems" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+             <MdList className="text-xl" /> View Items
+           </Link>
+           <Link to="/reports" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+             <MdAssessment className="text-xl" /> Reports
+           </Link>
+           <Link to="/settings" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+             <MdSettings className="text-xl" /> Settings
+           </Link>
+         </div>
+    
    
   {/* Bottom spacer - increased padding */}
   <div className="mt-auto pb-10"></div>
