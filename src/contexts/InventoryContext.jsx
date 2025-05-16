@@ -8,6 +8,33 @@ export const InventoryProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Add a function to handle storage events
+  const handleStorageChange = (event) => {
+    if (event.key === 'inventoryData') {
+      try {
+        const newData = JSON.parse(event.newValue);
+        if (newData && newData.data) {
+          setItems(newData.data);
+        }
+      } catch (err) {
+        console.error("Failed to parse updated inventory data", err);
+      }
+    }
+  };
+
+  useEffect(() => {
+    // Add storage event listener
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Initial data load
+    fetchItems();
+
+    return () => {
+      // Clean up the event listener
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
   const fetchItems = async () => {
     setLoading(true);
     setError(null);
@@ -48,10 +75,14 @@ export const InventoryProvider = ({ children }) => {
     }
   };
 
-  // Initial data load
-  useEffect(() => {
-    fetchItems();
-  }, []);
+  // Add a function to update local storage and state consistently
+  const updateItems = (newItems) => {
+    setItems(newItems);
+    localStorage.setItem('inventoryData', JSON.stringify({
+      data: newItems,
+      lastUpdated: new Date().toISOString()
+    }));
+  };
 
   const addItem = async (newItem) => {
     try {
@@ -85,7 +116,8 @@ export const InventoryProvider = ({ children }) => {
       loading, 
       error, 
       addItem, 
-      fetchItems 
+      fetchItems,
+      updateItems // Expose the update function
     }}>
       {children}
     </InventoryContext.Provider>

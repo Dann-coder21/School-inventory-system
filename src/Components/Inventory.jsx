@@ -10,6 +10,9 @@ import {
   MdAssessment,
   MdSettings,
 } from "react-icons/md";
+import axios from "axios";
+import Swal from "sweetalert2";
+
 
 function Inventory() {
   const [withdrawInfo, setWithdrawInfo] = useState({});
@@ -21,20 +24,21 @@ function Inventory() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [showActions, setShowActions] = useState(null);
-  const { items, setItems, loading, error, fetchItems } = useContext(InventoryContext);
-  
+  const { items, setItems, loading, error, fetchItems, updateItems } = useContext(InventoryContext);
+
 
   // Add this right before your loading check
 
   useEffect(() => {
 
- 
-   
-   
-  }, [fetchItems]);
-  
-    
-  
+   if (loading) {
+     // Show loading indicator
+   } else if (error) {
+     // Show error message
+   }
+  }, [fetchItems, loading, error]);
+
+
 
   console.log(items)
   const filteredItems = items.filter((item) => {
@@ -63,43 +67,84 @@ function Inventory() {
       setItemToDelete(null);
     }
   };
+const handleWithdraw = async (index, recipientName, quantity) => {
+  if (!recipientName || !quantity || quantity <= 0) {
+    Swal.fire({
+      icon: "warning",
+      title: "Invalid Input",
+      text: "Please enter valid withdrawal details",
+    });
+    return;
+  }
 
-  const handleWithdraw = (index, name, quantity) => {
-    if (!name || !quantity) {
-      alert("Please enter both name and quantity");
+  const item = items[index];
+
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      Swal.fire({
+        icon: "error",
+        title: "Session Expired",
+        text: "Please login again.",
+      }).then(() => {
+        window.location.href = "/login";
+      });
       return;
     }
 
-    const updatedItems = [...items];
-    const currentItem = updatedItems[index];
+    // Send withdrawal request
+    const response = await axios.post(
+      "http://localhost:3000/withdrawals/withdraw",
+      {
+        item_id: item.id,
+        quantity: Number(quantity),
+        withdrawn_by: recipientName,
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-    if (quantity <= 0 || quantity > currentItem.quantity) {
-      alert("Invalid quantity.");
-      return;
-    }
+    // Use the context's updateItems function to ensure consistency
+    updateItems(items.map(item => 
+      item.id === response.data.updatedItem.id 
+        ? response.data.updatedItem 
+        : item
+    ));
 
-    currentItem.quantity -= quantity;
-    currentItem.status =
-      currentItem.quantity === 0
-        ? "Out of Stock"
-        : currentItem.quantity < 5
-        ? "Low Stock"
-        : "Available";
-
-    setItems(updatedItems);
-
-    setWhoTook((prev) => ({
-      ...prev,
-      [index]: `${name} withdrew ${quantity} on ${new Date().toLocaleDateString()}`,
-    }));
-
-    setWithdrawInfo((prev) => ({
-      ...prev,
-      [index]: { name: "", quantity: "" },
-    }));
-
+    // Reset UI states
+    setWithdrawInfo(prev => ({ ...prev, [index]: {} }));
     setActiveRow(null);
-  };
+    setWhoTook(prev => ({ ...prev, [index]: recipientName }));
+
+    // Show success
+    await Swal.fire({
+      icon: "success",
+      title: "Withdrawal Recorded",
+      text: "The withdrawal was recorded successfully.",
+      timer: 2000,
+      showConfirmButton: false,
+    });
+
+  } catch (error) {
+    console.error("Withdrawal error:", error);
+
+    if (error.response?.status === 401) {
+      Swal.fire({
+        icon: "error",
+        title: "Session Expired",
+        text: "Please login again.",
+      }).then(() => {
+        localStorage.removeItem("token");
+        window.location.href = "/login";
+      });
+    } else {
+      Swal.fire({
+        icon: "error",
+        title: "Withdrawal Failed",
+        text: error.response?.data?.error || "Failed to record withdrawal",
+      });
+    }
+  }
+};
 
   const handleAddStock = (index, quantity) => {
     // Convert quantity to number if it's a string
@@ -132,7 +177,7 @@ function Inventory() {
     <>
     <div> welcome </div>
   <div className="fixed top-0 left-0 w-[250px] h-screen bg-[#3f51b5] text-white pt-8 flex flex-col z-50">
-         <h2 className="text-center mb-10 text-xl font-semibold">Settings</h2>
+         <h2 className="text-center mb-10 text-xl font-semibold">Inventory</h2>
          <Link to="/dashboard" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
            <MdDashboard className="text-xl" /> Dashboard
          </Link>
@@ -157,7 +202,7 @@ function Inventory() {
       {/* Navbar */}
 {/* Navbar */}
 <div className="grid grid-cols-3 items-center bg-gradient-to-r from-blue-500 to-indigo-500 text-white h-[70px] px-6 shadow-lg z-40">
-  {/* First Grid - Centered Search Bar */}
+  {/* First Grid - Empty but keeps space (matches your second example) */}
   <div className="flex justify-end">
     <div className="relative w-[240px]">
       <input
@@ -168,7 +213,7 @@ function Inventory() {
     </div>
   </div>
 
-  {/* Second Grid - Centered Title */}
+  {/* Second Grid - Centered Title (matches your second example structure) */}
   <div className="flex items-center justify-center">
     <div className="flex items-center">
       <div className="p-2 bg-white/10 rounded-lg mr-3">
@@ -387,23 +432,27 @@ function Inventory() {
     <label className="block text-sm font-medium text-gray-700 mb-2 text-center">  {/* Reduced mb-3 to mb-2 */}
       Quantity (Max: {item.quantity})
     </label>
-    <input
-      type="number"
-      min="1"
-      max={item.quantity}
-      value={withdrawInfo[index]?.quantity || ""}
-      onChange={(e) =>
-        setWithdrawInfo((prev) => ({
-          ...prev,
-          [index]: {
-            ...prev[index],
-            quantity: parseInt(e.target.value) || "",
-          },
-        }))
-      }
-      className="w-full px-5 py-3 text-lg bg-gray-50 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all placeholder-gray-400 h-12" 
-      placeholder="Enter quantity"
-    />
+  <input
+  type="number"
+  min="1"
+  max={item.quantity}
+  value={withdrawInfo[index]?.quantity || ""}
+  onChange={(e) => {
+    const value = Math.min(
+      item.quantity, 
+      Math.max(1, parseInt(e.target.value) || 1)  // Added missing parenthesis here
+    );
+    setWithdrawInfo((prev) => ({
+      ...prev,
+      [index]: {
+        ...prev[index],
+        quantity: value,
+      },
+    }));
+  }}
+  className="w-full px-5 py-3 text-lg bg-gray-50 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all placeholder-gray-400 h-12"
+  placeholder="Enter quantity"
+/>
   </div>
 </div>
 

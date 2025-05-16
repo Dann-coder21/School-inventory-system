@@ -53,21 +53,47 @@ const Dashboard = () => {
   });
 };
 
+const fetchUser = async () => {
+  // 1. First check if token exists
+  const token = localStorage.getItem("token");
+  if (!token) {
+    console.log("No token found in localStorage");
+    navigate("/login");
+    return;
+  }
 
-  const fetchUser = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get("http://localhost:3000/auth/dashboard", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.status !== 201) {
-        navigate("/login");
-      }
-    } catch (err) {
-      navigate("/login");
-      console.log(err);
+  try {
+    // 2. Make the request
+    const response = await axios.get("http://localhost:3000/auth/dashboard", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    // 3. Check for successful response (200 range)
+    if (response.status >= 200 && response.status < 300) {
+      // User is authenticated, proceed with dashboard
+      console.log("User authenticated:", response.data);
+      return;
     }
-  };
+
+    // 4. Handle unexpected successful status codes
+    console.warn("Unexpected status code:", response.status);
+    throw new Error(`Unexpected status: ${response.status}`);
+
+  } catch (err) {
+    // 5. Proper error handling
+    console.error("Dashboard auth error:", err);
+
+    // Only redirect on 401 Unauthorized
+    if (err.response?.status === 401) {
+      localStorage.removeItem("token"); // Clear invalid token
+      navigate("/login");
+    } else {
+      // Handle other errors (network, server, etc.) differently
+      // Maybe show an error message instead of redirecting
+      alert("Failed to load dashboard. Please try again later.");
+    }
+  }
+};
 
   useEffect(() => {
     fetchUser();
@@ -87,28 +113,28 @@ const Dashboard = () => {
   </div>
 
   {/* Navigation Links - Centered with increased padding */}
-  <div className="flex flex-col items-center px-6 gap-2 mb-8"> {/* Increased side padding */}
-    <div className="h-8"></div> {/* Larger spacer */}
-<Link to="/dashboard" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-             <MdDashboard className="text-xl" /> Dashboard
-           </Link>
-           <Link to="/inventory" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-             <MdInventory className="text-xl" /> Inventory
-           </Link>
-           <Link to="/AddItemsForm" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-             <MdAddBox className="text-xl" /> Add Items
-           </Link>
-           <Link to="/viewitems" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-             <MdList className="text-xl" /> View Items
-           </Link>
-           <Link to="/reports" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-             <MdAssessment className="text-xl" /> Reports
-           </Link>
-           <Link to="/settings" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-             <MdSettings className="text-xl" /> Settings
-           </Link>
-  </div>
-
+  <div className="fixed top-0 left-0 w-[250px] h-screen bg-[#3f51b5] text-white pt-8 flex flex-col z-50">
+          <h2 className="text-center mb-10 text-xl font-semibold">Dashboard</h2>
+          <Link to="/dashboard" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+            <MdDashboard className="text-xl" /> Dashboard
+          </Link>
+          <Link to="/inventory" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+            <MdInventory className="text-xl" /> Inventory
+          </Link>
+          <Link to="/AddItemsForm" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+            <MdAddBox className="text-xl" /> Add Items
+          </Link>
+          <Link to="/viewitems" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+            <MdList className="text-xl" /> View Items
+          </Link>
+          <Link to="/reports" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+            <MdAssessment className="text-xl" /> Reports
+          </Link>
+          <Link to="/settings" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
+            <MdSettings className="text-xl" /> Settings
+          </Link>
+        </div>
+   
   {/* Bottom spacer - increased padding */}
   <div className="mt-auto pb-10"></div>
 </div>

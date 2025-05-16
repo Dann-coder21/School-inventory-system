@@ -66,7 +66,7 @@ const Reports = () => {
     <div className="min-h-screen flex flex-col font-inter bg-gradient-to-br from-[#e0f7fa] to-[#f1f8ff]">
       {/* Sidebar */}
       <div className="fixed top-0 left-0 w-[250px] h-screen bg-[#3f51b5] text-white pt-8 flex flex-col z-50">
-             <h2 className="text-center mb-10 text-xl font-semibold">Settings</h2>
+             <h2 className="text-center mb-10 text-xl font-semibold">Reports</h2>
              <Link to="/dashboard" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
                <MdDashboard className="text-xl" /> Dashboard
              </Link>

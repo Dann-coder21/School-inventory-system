@@ -4,11 +4,6 @@ import bcrypt from "bcrypt";
 const createAccount = async (req, res) => {
   const { fullname, email, dob, phone, password } = req.body;
 
-  
-
-
-
-
  
   try {
     const db = await connectToDatabase();

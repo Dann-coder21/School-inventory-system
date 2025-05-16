@@ -77,20 +77,24 @@ const verifyToken = async (req, res, next) => {
 };
 
 router.get("/dashboard", verifyToken, async (req, res) => {
+  let conn;
   try {
-    const db = await connectToDatabase();
-    const [rows] = await db.query("SELECT * FROM users WHERE id = ?", [
-      req.userId,
-    ]);
+    conn = await connectToDatabase();
+    const [rows] = await conn.query(
+      "SELECT id, fullname, email FROM users WHERE id = ?", 
+      [req.userId]
+    );
+    
     if (rows.length === 0) {
-      return res.status(404).json({ message: "user not existed" });
+      return res.status(404).json({ message: "User not found" });
     }
-
-    return res.status(201).json({ user: rows[0] });
+    
+    res.status(200).json({ user: rows[0] });
   } catch (err) {
-    consol.log(err)
-    return res.status(500).json({ message: err });
+    console.error("Dashboard error:", err);
+    res.status(500).json({ message: "Database error" });
   }
+  // Note: Don't close the connection - we're reusing it
 });
 
 export default router;
