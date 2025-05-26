@@ -1,109 +1,209 @@
 @media print {
+  /* --- Page Setup & Defaults --- */
   @page {
-    size: A4 portrait;
-    margin: 12mm;
+    size: A4 portrait; /* Standard A4, portrait orientation */
+    margin: 15mm 12mm 15mm 12mm; /* Top, Right, Bottom, Left margins */
   }
 
-  body {
+  html, body { /* Apply to html as well for some browser consistency */
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    font-size: 10.5pt;
-    font-family: 'Segoe UI', Arial, sans-serif;
-    color: #222;
-    background: #fff !important;
-    line-height: 1.35;
+    font-size: 10pt; /* Slightly smaller for more content, adjust as needed */
+    font-family: 'Helvetica Neue', 'Arial Nova', 'Nimbus Sans', Arial, sans-serif; /* Modern, widely available sans-serif */
+    color: #333; /* Dark gray for text, not pure black for better readability */
+    background: #fff !important; /* Ensure white background */
+    line-height: 1.4; /* Slightly more line spacing */
+    -webkit-print-color-adjust: exact !important; /* Force browsers to print background colors/images if needed (use sparingly) */
+    print-color-adjust: exact !important;
   }
 
-  .no-print {
+  /* --- Hide Screen-Only Elements --- */
+  .no-print,
+  nav, /* Common tag for navigation sidebars/headers */
+  header, /* Common tag for page headers */
+  footer, /* Common tag for page footers */
+  aside, /* Common tag for sidebars */
+  form button[type="submit"], /* Hide submit buttons, etc. */
+  button, /* General buttons */
+  input[type="search"], /* Hide search inputs */
+  .action-buttons /* If you have a specific class for action buttons */
+  {
     display: none !important;
+    visibility: hidden !important; /* Stronger hiding */
   }
 
+  /* --- Main Content Area for Print --- */
   .print-content {
     width: 100% !important;
     margin: 0 !important;
-    padding: 8mm 5mm 5mm 5mm !important;
+    padding: 0 !important; /* Remove padding from print-content if @page margin is sufficient */
     background: #fff !important;
+    /* page-break-before: always; */ /* Uncomment if you want print-content to start on a new page */
   }
 
+  /* --- Print-Specific Header (e.g., Report Title, Date) --- */
   .print-header {
     display: block !important;
     text-align: center;
-    margin-bottom: 7mm;
-    padding-bottom: 3mm;
-    border-bottom: 2px solid #1976d2;
-    color: #1976d2;
-    font-size: 1.3em;
-    letter-spacing: 0.5px;
+    margin-bottom: 10mm;
+    padding-bottom: 5mm;
+    border-bottom: 1.5px solid #555; /* Subtler border */
+  }
+  .print-header h1 { /* Style h1 inside print-header */
+    font-size: 16pt;
+    color: #1a237e; /* Darker, professional blue */
+    margin-bottom: 2mm;
+    font-weight: 600;
+  }
+  .print-header p { /* Style p inside print-header */
+    font-size: 9pt;
+    color: #444;
   }
 
-  .print-summary {
+  /* --- Summary Section --- */
+  .print-summary-grid { /* Renamed for clarity */
     display: grid !important;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 5mm;
-    margin-bottom: 8mm;
-    page-break-after: avoid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* Responsive columns */
+    gap: 6mm;
+    margin-bottom: 10mm;
+    padding: 5mm;
+    border: 1px solid #ccc;
+    border-radius: 4px; /* Subtle rounding can be okay if printer handles it */
+    background-color: #f9f9f9; /* Very light gray for differentiation */
+    page-break-inside: avoid; /* Try to keep summary on one page */
+  }
+  .print-summary-grid > div { /* Style for individual summary items */
+    padding: 3mm;
+    text-align: left; /* Align text left for better readability of labels */
+  }
+  .print-summary-grid h3, .print-summary-grid .summary-label { /* For labels */
+    font-size: 9.5pt;
+    color: #555;
+    margin-bottom: 1mm;
+    font-weight: normal;
+  }
+  .print-summary-grid p, .print-summary-grid .summary-value { /* For values */
+    font-size: 11pt;
+    color: #222;
+    font-weight: bold;
   }
 
-  .print-summary > div {
-    padding: 4mm 2mm;
-    border: 1px solid #b3c6e0;
-    border-radius: 6px;
-    background: #f5faff;
-    text-align: center;
-    font-size: 1em;
-  }
 
+  /* --- General Section Styling & Page Breaks --- */
   .print-section {
-    page-break-inside: avoid;
-    break-inside: avoid;
+    page-break-inside: avoid !important; /* Critical for keeping sections together */
+    break-inside: avoid !important;
     margin-bottom: 8mm;
   }
+  .print-section h2 { /* Titles for sections like "Low Stock Items" */
+    font-size: 13pt;
+    color: #1a237e; /* Consistent dark blue */
+    margin-bottom: 4mm;
+    padding-bottom: 2mm;
+    border-bottom: 1px solid #ddd;
+    font-weight: 600;
+    page-break-after: avoid !important; /* Don't break page immediately after a heading */
+  }
 
+
+  /* --- Table Styling --- */
   .print-table {
     width: 100%;
-    font-size: 9.5pt;
+    font-size: 9pt; /* Slightly smaller for tables */
     border-collapse: collapse;
-    page-break-inside: avoid;
-    break-inside: avoid;
-    margin-bottom: 7mm;
-    background: #fff;
+    margin-bottom: 8mm;
+    /* page-break-inside: auto; */ /* Allow tables to break if very long, but try to keep rows together */
   }
-
-  .print-table th {
-    background: #1976d2;
-    color: #fff;
-    font-weight: 600;
-    padding: 3mm 4mm !important;
-    border: 1px solid #b3c6e0 !important;
+  .print-table caption { /* If you use table captions */
+    font-size: 11pt;
+    font-weight: bold;
+    margin-bottom: 3mm;
     text-align: left;
-    font-size: 1em;
+    color: #333;
   }
-
+  .print-table th,
   .print-table td {
-    padding: 2.5mm 4mm !important;
-    border: 1px solid #e0e7ef !important;
-    background: #f8fafc;
-    font-size: 0.98em;
+    padding: 2.5mm 3mm !important; /* Consistent padding */
+    border: 1px solid #ccc !important; /* Lighter border for less visual clutter */
+    text-align: left;
+    vertical-align: top; /* Align content to the top of cells */
   }
-
+  .print-table th {
+    background-color: #e8eaf6 !important; /* Lighter, professional blue for header */
+    color: #283593 !important; /* Darker blue text for contrast */
+    font-weight: 600;
+    font-size: 9.5pt;
+  }
+  .print-table td {
+    background-color: #fff !important; /* White background for cells */
+    color: #333 !important;
+  }
   .print-table tr:nth-child(even) td {
-    background: #f1f5fa;
+    background-color: #f7f9fc !important; /* Very subtle striping */
+  }
+  .print-table tr { /* Ensure rows are treated as table rows */
+    page-break-inside: avoid !important; /* Try to keep individual rows on one page */
+    break-inside: avoid !important;
   }
 
-  .print-table tr {
-    display: table-row !important;
+  /* --- Links --- */
+  a {
+    color: #0d47a1 !important; /* Professional blue for links */
+    text-decoration: none !important; /* Remove underlines by default for cleaner print */
+  }
+  a[href^="http"]:after, a[href^="https"]:after { /* Show full URL for external links */
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #555;
+  }
+  a[href^="/"]:after, a[href^="#"]:after { /* Don't show for internal/anchor links */
+    content: "";
   }
 
-  /* Remove box-shadows and rounded corners for print clarity */
-  .shadow-lg, .rounded-xl, .rounded-tl-xl, .rounded-tr-xl {
+
+  /* --- Resetting Screen Styles & Ensuring Print Clarity --- */
+  * { /* Universal reset for print */
     box-shadow: none !important;
-    border-radius: 0 !important;
+    text-shadow: none !important;
+    /* border-radius: 0 !important; */ /* Optional: keep some subtle rounding if desired */
+    /* transition: none !important; */ /* Transitions are irrelevant for print */
+  }
+  img, svg { /* Ensure images/SVGs scale correctly and don't overflow */
+    max-width: 100% !important;
+    height: auto !important;
+    display: block; /* Avoid extra space below images */
   }
 
-  /* Optional: Enforce single page */
+  /* --- Specific Overrides if Needed (use sparingly) --- */
+  /* Example: If a chart needs specific print styling */
+  /* .category-pie-chart-container-print {
+    width: 180mm;
+    height: 100mm;
+  } */
+
+  /* --- Utility for Single Page (if absolutely necessary) --- */
   .single-page-print {
-    height: 275mm;
-    overflow: hidden;
+    /* This is often hard to enforce perfectly across all content variations.
+       Focus on good page-break-inside: avoid for sections instead. */
+    /* height: 260mm; */ /* Usable height within A4 margins */
+    /* overflow: hidden; */
   }
+
+  /* --- Footer for Print (if you have a .print-footer class) --- */
+  .print-footer {
+    display: block !important;
+    position: fixed; /* Try to fix at bottom, might be tricky with multi-page */
+    bottom: 5mm;
+    left: 12mm;
+    right: 12mm;
+    text-align: center;
+    font-size: 8pt;
+    color: #666;
+    border-top: 1px solid #eee;
+    padding-top: 2mm;
+  }
+  /* For multi-page footers, it's better to rely on @page :bottom content if browser support is good,
+     or use JavaScript libraries designed for print pagination. */
+
 }

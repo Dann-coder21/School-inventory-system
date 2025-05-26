@@ -1,7 +1,13 @@
-import React, { useContext, useState, useEffect, useMemo} from "react";
-import "../Styles/Inventory.css"
-import { Link } from "react-router-dom";
+import React, { useContext, useState, useEffect, useMemo } from "react";
+import { Link, NavLink, useNavigate } from "react-router-dom"; // Using NavLink for active styles
 import { InventoryContext } from "../contexts/InventoryContext";
+import { ThemeContext } from "../contexts/ThemeContext";
+import axios from "axios";
+import Swal from "sweetalert2";
+import 'sweetalert2/dist/sweetalert2.min.css'; // Essential for SweetAlert2 styling
+import LoadingSpinner from "../Components/LoadingSpinner"; // Your custom loading spinner
+
+// Importing all necessary icons
 import {
   MdDashboard,
   MdInventory,
@@ -9,59 +15,63 @@ import {
   MdList,
   MdAssessment,
   MdSettings,
+  MdSchool, // For sidebar brand
+  MdSearch, // For search input
+  MdMoreVert, // For row actions menu
+  MdDeleteOutline, // Delete icon
+  MdArrowUpward, // Sort icon
+  MdArrowDownward, // Sort icon
+  MdClose, // Close modal icon
+  MdOutlineInventory2, // Empty state icon
+  MdSystemUpdateAlt, // Withdraw icon (can also use something like MdRemoveCircleOutline)
+  MdAddCircleOutline, // Add Stock icon
+  MdWarningAmber, // Warning/Error icon
 } from "react-icons/md";
-import axios from "axios";
-import Swal from "sweetalert2";
-import LoadingSpinner from "../Components/LoadingSpinner";
-
 
 function Inventory() {
-  const [withdrawInfo, setWithdrawInfo] = useState({});
-  const [addStockInfo, setAddStockInfo] = useState({});
-  const [whoTook, setWhoTook] = useState({});
-  const [activeRow, setActiveRow] = useState(null);
-  const [activeAddRow, setActiveAddRow] = useState(null);
+  const { items, setItems, loading, error, fetchItems /* updateItems - if used for global sync */ } = useContext(InventoryContext);
+  const { darkMode } = useContext(ThemeContext);
+  const navigate = useNavigate();
+
+  // State for modals and forms - using item.id as key for robustness
+  const [withdrawInfo, setWithdrawInfo] = useState({}); // { [itemId]: { name: '', quantity: '' } }
+  const [addStockInfo, setAddStockInfo] = useState({});   // { [itemId]: '' } for quantity
+  const [whoTook, setWhoTook] = useState({});           // { [itemId]: 'recipientName' }
+
+  // State to control modal visibility - stores the item.id of the active row
+  const [activeWithdrawRowId, setActiveWithdrawRowId] = useState(null);
+  const [activeAddStockRowId, setActiveAddStockRowId] = useState(null);
+  
   const [searchTerm, setSearchTerm] = useState("");
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState(null);
-  const [showActions, setShowActions] = useState(null);
-  const { items, setItems, loading, error, fetchItems, updateItems } = useContext(InventoryContext);
+  const [itemForDeleteModal, setItemForDeleteModal] = useState(null); // Stores the full item object for delete
+  const [activeActionMenuId, setActiveActionMenuId] = useState(null); // item.id for the row with open action menu
 
-
-const [sortConfig, setSortConfig] = useState({
+  const [sortConfig, setSortConfig] = useState({
     key: null,
     direction: 'ascending'
   });
 
-  // Add this right before your loading check
-
+  // Initial data fetch if not handled by context provider on app load
   useEffect(() => {
+    if (!items.length && !loading && !error) {
+      // fetchItems(); // Uncomment if you want this component to trigger fetch
+    }
+  }, [items.length, loading, error, fetchItems]);
 
-   if (loading) {
-     // Show loading indicator
-   } else if (error) {
-     // Show error message
-   }
-  }, [fetchItems, loading, error]);
+  const filteredItems = useMemo(() => items.filter((item) => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    const itemStatus = item.quantity === 0 ? "out of stock" : item.quantity < 5 ? "low stock" : "available";
+    return (
+      (item.item_name?.toLowerCase() || '').includes(searchLower) ||
+      (item.category?.toLowerCase() || '').includes(searchLower) ||
+      (itemStatus.includes(searchLower)) ||
+      (item.date_added && new Date(item.date_added).toLocaleDateString().toLowerCase().includes(searchLower)) ||
+      (item.quantity?.toString() || '').includes(searchTerm)
+    );
+  }), [items, searchTerm]);
 
-
-
-  console.log(items)
-  const filteredItems = items.filter((item) => {
-  if (!searchTerm) return true; // Show all items when no search term
-  
-  const searchLower = searchTerm.toLowerCase();
-  
-  return (
-    (item.item_name?.toLowerCase() || '').includes(searchLower) ||
-    (item.category?.toLowerCase() || '').includes(searchLower) ||
-    (item.status?.toLowerCase() || '').includes(searchLower) ||
-    (item.date_added && new Date(item.date_added).toLocaleDateString().toLowerCase().includes(searchLower)) ||
-    (item.quantity?.toString() || '').includes(searchTerm) // Search quantity as string
-  );
-});
-
-const sortedItems = useMemo(() => {
+  const sortedItems = useMemo(() => {
     let sortableItems = [...filteredItems];
     if (sortConfig.key) {
       sortableItems.sort((a, b) => {
@@ -71,10 +81,19 @@ const sortedItems = useMemo(() => {
         if (sortConfig.key === 'date_added') {
           valueA = new Date(valueA);
           valueB = new Date(valueB);
+        } else if (sortConfig.key === 'status') {
+            const getStatusValue = (qty) => qty === 0 ? 2 : qty < 5 ? 1 : 0; // 0: Avail, 1: Low, 2: Out
+            valueA = getStatusValue(a.quantity);
+            valueB = getStatusValue(b.quantity);
+        } else if (typeof valueA === 'string' && typeof valueB === 'string') { // Ensure both are strings for toLowerCase
+            valueA = valueA.toLowerCase();
+            valueB = valueB.toLowerCase();
+        } else if (typeof valueA === 'number' && typeof valueB === 'number') {
+            // Standard number comparison is fine
+        } else { // Handle mixed types or nulls gracefully
+            if (valueA == null) return sortConfig.direction === 'ascending' ? 1 : -1;
+            if (valueB == null) return sortConfig.direction === 'ascending' ? -1 : 1;
         }
-        
-        if (valueA == null) return sortConfig.direction === 'ascending' ? 1 : -1;
-        if (valueB == null) return sortConfig.direction === 'ascending' ? -1 : 1;
         
         if (valueA < valueB) return sortConfig.direction === 'ascending' ? -1 : 1;
         if (valueA > valueB) return sortConfig.direction === 'ascending' ? 1 : -1;
@@ -84,847 +103,513 @@ const sortedItems = useMemo(() => {
     return sortableItems;
   }, [filteredItems, sortConfig]);
 
+  const requestSort = (key) => {
+    let direction = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
 
-const handleDelete = async () => {
-  if (itemToDelete === null) return;
-  const item = items[itemToDelete];
-  let deleteSuccessful = false;
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return null;
+    return sortConfig.direction === 'ascending' ? <MdArrowUpward className="ml-1.5 text-xs" /> : <MdArrowDownward className="ml-1.5 text-xs" />;
+  };
+  
+  const swalThemeProps = {
+    background: darkMode ? 'rgba(30, 41, 59, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+    color: darkMode ? '#e2e8f0' : '#1e293b',
+    customClass: {
+      popup: 'rounded-xl shadow-2xl p-4 sm:p-6',
+      confirmButton: `px-5 py-2.5 rounded-lg font-semibold text-white text-sm ${darkMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-indigo-500 hover:bg-indigo-600'}`,
+      cancelButton: `px-5 py-2.5 rounded-lg font-semibold text-sm ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`,
+      title: `text-lg sm:text-xl font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`,
+      htmlContainer: `text-sm ${darkMode ? 'text-slate-300' : 'text-slate-600'}`,
+      icon: 'text-4xl sm:text-5xl mt-2 mb-2 sm:mb-4',
+    },
+    buttonsStyling: false, // Use customClass for buttons
+    backdrop: `rgba(0,0,0,0.65)`
+  };
+
+  const handleSessionExpired = () => {
+    localStorage.removeItem("token");
+    Swal.fire({
+      ...swalThemeProps,
+      iconHtml: `<span class="text-red-500 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.75c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.25-8.25-3.286Zm0 13.036h.008v.008H12v-.008Z" /></svg></span>`,
+      title: "Session Expired",
+      text: "Your session has expired. Please login again.",
+    }).then(() => navigate("/login"));
+  };
+
+  const handleDelete = async () => {
+    if (!itemForDeleteModal) return;
+
+    Swal.fire({
+      ...swalThemeProps,
+      title: `Delete "${itemForDeleteModal.item_name}"?`,
+      text: "This action cannot be undone and the item will be permanently removed.",
+      iconHtml: `<span class="text-red-500 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c.34-.059.678-.113 1.017-.165m11.543 0c-3.445-.217-7.151-.217-10.596 0m10.596 0a48.108 48.108 0 0 1-3.478-.397m-7.503 0c.339-.059.677-.113 1.017-.165" /></svg></span>`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, delete it!',
+      // confirmButtonColor: '#e53e3e', // Red, but covered by customClass
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        Swal.fire({ // Loading state
+          ...swalThemeProps,
+          title: "Deleting Item...",
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading(),
+          showConfirmButton: false,
+        });
+
+        try {
+          const token = localStorage.getItem("token");
+          if (!token) throw new Error("Authentication token not found.");
+
+          await axios.delete(`http://localhost:3000/delete/items/${itemForDeleteModal.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          setItems(prevItems => prevItems.filter(i => i.id !== itemForDeleteModal.id));
+          
+          Swal.fire({
+            ...swalThemeProps,
+            iconHtml: `<span class="text-green-500 dark:text-green-400"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></span>`,
+            title: "Deleted Successfully!",
+            text: `"${itemForDeleteModal.item_name}" has been removed.`,
+            timer: 2500,
+            showConfirmButton: false,
+          });
+        } catch (err) {
+          console.error("Delete error:", err);
+          if (err.response?.status === 401) handleSessionExpired();
+          else Swal.fire({ ...swalThemeProps, icon: "error", title: "Deletion Failed", text: err.response?.data?.error || "Could not delete the item." });
+        } finally {
+          setItemForDeleteModal(null); 
+          setActiveActionMenuId(null);
+        }
+      } else {
+        setItemForDeleteModal(null); // User cancelled
+      }
+    });
+  };
+
+  const handleWithdraw = async (item, recipientName, quantity) => {
+  const withdrawQuantity = Number(quantity);
+  
+  // Validation checks
+  if (!recipientName?.trim() || !withdrawQuantity || withdrawQuantity <= 0) {
+    Swal.fire({ ...swalThemeProps, icon: "warning", title: "Invalid Input", 
+               text: "Please provide a valid recipient name and quantity." });
+    return;
+  }
+  
+  if (withdrawQuantity > item.quantity) {
+    Swal.fire({ ...swalThemeProps, icon: "error", title: "Insufficient Stock", 
+               text: `Cannot withdraw more than the available ${item.quantity} units.` });
+    return;
+  }
 
   try {
     const token = localStorage.getItem("token");
-    if (!token) throw new Error("No authentication token");
+    if (!token) {
+      handleSessionExpired();
+      return;
+    }
 
-    // 1. Confirmation dialog
-    const { isConfirmed } = await Swal.fire({
-      title: `Delete ${item.item_name}?`,
-      text: "This cannot be undone",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!isConfirmed) return;
-
-    // 2. Show loading state
-    const swalInstance = Swal.fire({
-      title: "Deleting...",
+    // Show loading state
+    Swal.fire({
+      ...swalThemeProps,
+      title: "Processing Withdrawal...",
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading(),
+      showConfirmButton: false
     });
 
-    // 3. API call
-    await axios.delete(`http://localhost:3000/delete/items/${item.id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 5000,
-    });
-    deleteSuccessful = true;
-
-    // 4. Optimistic UI update only
-    setItems(prev => prev.filter(i => i.id !== item.id));
-    updateItems(items.filter(i => i.id !== item.id));
-
-    // 5. Success notification
-    await Swal.fire({
-      icon: "success",
-      title: "Deleted!",
-      text: `${item.item_name} was removed`,
-      timer: 2000,
-      showConfirmButton: false,
-    });
-
-  } catch (error) {
-    console.error("Delete error:", error);
-    
-    if (error.response?.status === 401) {
-      handleSessionExpired();
-    } else {
-      await Swal.fire({
-        icon: deleteSuccessful ? "warning" : "error",
-        title: deleteSuccessful ? "Sync Issue" : "Delete Failed",
-        text: deleteSuccessful 
-          ? "Item was deleted but may still show. Refreshing..."
-          : "Failed to delete item. Please try again.",
-      });
-      
-      // Only refresh if we know delete succeeded
-      if (deleteSuccessful) {
-        await fetchItems();
-      }
-    }
-  } finally {
-    Swal.close();
-    setShowDeleteModal(false);
-    setItemToDelete(null);
-  }
-};
-
-// Helper function
-const handleSessionExpired = () => {
-  localStorage.removeItem("token");
-  window.location.href = "/login";
-};
-
-const handleWithdraw = async (index, recipientName, quantity) => {
-  if (!recipientName || !quantity || quantity <= 0) {
-    Swal.fire({
-      icon: "warning",
-      title: "Invalid Input",
-      text: "Please enter valid withdrawal details",
-    });
-    return;
-  }
-
-  const item = items[index];
-
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      Swal.fire({
-        icon: "error",
-        title: "Session Expired",
-        text: "Please login again.",
-      }).then(() => {
-        window.location.href = "/login";
-      });
-      return;
-    }
-
-    // Send withdrawal request
     const response = await axios.post(
       "http://localhost:3000/withdrawals/withdraw",
-      {
-        item_id: item.id,
-        quantity: Number(quantity),
-        withdrawn_by: recipientName,
+      { 
+        item_id: item.id, 
+        quantity: withdrawQuantity, 
+        withdrawn_by: recipientName.trim() 
       },
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
-    // Use the context's updateItems function to ensure consistency
-    updateItems(items.map(item => 
-      item.id === response.data.updatedItem.id 
-        ? response.data.updatedItem 
-        : item
-    ));
+    // Verify response structure
+   const { updatedItem, message } = response.data || {};
+if (!updatedItem) {
+  throw new Error(message || "Invalid response from server");
+}
 
-    // Reset UI states
-    setWithdrawInfo(prev => ({ ...prev, [index]: {} }));
-    setActiveRow(null);
-    setWhoTook(prev => ({ ...prev, [index]: recipientName }));
 
-    // Show success
-    await Swal.fire({
+    // Update state optimistically
+    setItems(prevItems => 
+  prevItems.map(i => 
+    i.id === item.id 
+      ? { ...i, quantity: response.data.updatedItem.quantity } 
+      : i
+  )
+);
+
+    // Reset form state
+    setWithdrawInfo(prev => ({ ...prev, [item.id]: { name: '', quantity: '' } }));
+    setActiveWithdrawRowId(null);
+    setWhoTook(prev => ({ ...prev, [item.id]: recipientName.trim() }));
+
+    // Show success message
+    Swal.fire({
+      ...swalThemeProps,
       icon: "success",
-      title: "Withdrawal Recorded",
-      text: "The withdrawal was recorded successfully.",
-      timer: 2000,
-      showConfirmButton: false,
+      title: "Withdrawal Successful",
+      text: `${withdrawQuantity} of "${item.item_name}" withdrawn by ${recipientName.trim()}.`,
+      timer: 2500,
+      showConfirmButton: false
     });
 
-  } catch (error) {
-    console.error("Withdrawal error:", error);
-
-    if (error.response?.status === 401) {
-      Swal.fire({
-        icon: "error",
-        title: "Session Expired",
-        text: "Please login again.",
-      }).then(() => {
-        localStorage.removeItem("token");
-        window.location.href = "/login";
-      });
-    } else {
-      Swal.fire({
-        icon: "error",
-        title: "Withdrawal Failed",
-        text: error.response?.data?.error || "Failed to record withdrawal",
-      });
+  } catch (err) {
+    console.error("Withdrawal error:", err);
+    
+    // Show appropriate error message
+    let errorMessage = "Could not record withdrawal";
+    if (err.response) {
+      if (err.response.status === 401) {
+        handleSessionExpired();
+        return;
+      }
+      errorMessage = err.response.data?.error || errorMessage;
+    } else if (err.message) {
+      errorMessage = err.message;
     }
+
+    Swal.fire({
+      ...swalThemeProps,
+      icon: "error",
+      title: "Withdrawal Failed",
+      text: errorMessage
+    });
   }
 };
 
-  const handleAddStock = async (index, quantity) => {
-  // Convert quantity to number if it's a string
-  const quantityToAdd = Number(quantity);
-  
-  if (!quantityToAdd || quantityToAdd <= 0) {
-    Swal.fire({
-      icon: "warning",
-      title: "Invalid Input",
-      text: "Please enter a valid quantity to add.",
-    });
-    return;
-  }
-
-  const item = items[index];
-
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      Swal.fire({
-        icon: "error",
-        title: "Session Expired",
-        text: "Please login again.",
-      }).then(() => {
-        window.location.href = "/login";
-      });
+  const handleAddStock = async (item, quantity) => {
+    const quantityToAdd = Number(quantity);
+    if (!quantityToAdd || quantityToAdd <= 0) {
+      Swal.fire({ ...swalThemeProps, icon: "warning", title: "Invalid Input", text: "Please enter a valid quantity (must be greater than 0)." });
       return;
     }
 
-    // Send API request to update stock
-    const response = await axios.put(
-      `http://localhost:3000/stock/${item.id}/add-stock`,
-      { quantity: quantityToAdd },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) { handleSessionExpired(); return; }
 
-    // Update local state with the response data
-    updateItems(items.map(i => 
-      i.id === item.id ? response.data.updatedItem : i
-    ));
+      const response = await axios.put(
+        `http://localhost:3000/stock/${item.id}/add-stock`,
+        { quantity: quantityToAdd },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setItems(prevItems => prevItems.map(i => i.id === response.data.updatedItem.id ? response.data.updatedItem : i));
+      setAddStockInfo(prev => ({ ...prev, [item.id]: '' }));
+      setActiveAddStockRowId(null);
+      setActiveActionMenuId(null);
 
-    // Reset UI states
-    setAddStockInfo((prev) => ({
-      ...prev,
-      [index]: "",
-    }));
-    setActiveAddRow(null);
-
-    // Show success notification
-    await Swal.fire({
-      icon: "success",
-      title: "Stock Updated",
-      text: `Added ${quantityToAdd} to ${item.item_name}`,
-      timer: 2000,
-      showConfirmButton: false,
-    });
-
-  } catch (error) {
-    console.error("Add stock error:", error);
-
-    if (error.response?.status === 401) {
-      Swal.fire({
-        icon: "error",
-        title: "Session Expired",
-        text: "Please login again.",
-      }).then(() => {
-        localStorage.removeItem("token");
-        window.location.href = "/login";
-      });
-    } else {
-      Swal.fire({
-        icon: "error",
-        title: "Update Failed",
-        text: error.response?.data?.error || "Failed to update stock",
-      });
+      Swal.fire({ ...swalThemeProps, icon: "success", title: "Stock Added", text: `${quantityToAdd} units added to "${item.item_name}". New total: ${response.data.updatedItem.quantity}.`, timer: 2500, showConfirmButton: false });
+    } catch (err) {
+      console.error("Add stock error:", err);
+      if (err.response?.status === 401) handleSessionExpired();
+      else Swal.fire({ ...swalThemeProps, icon: "error", title: "Update Failed", text: err.response?.data?.error || "Could not add stock." });
     }
-  }
-};
+  };
+
+  const sidebarLinkClass = ({ isActive }) =>
+    `px-5 py-3.5 hover:bg-white/20 transition-colors flex items-center gap-3.5 text-sm font-medium rounded-lg mx-3 my-1.5 ${
+      isActive 
+        ? (darkMode ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/30 text-white shadow-md') 
+        : (darkMode ? 'text-slate-300 hover:text-white hover:bg-slate-700/50' : 'text-indigo-100 hover:text-white')
+    }`;
+  const sidebarIconClass = "text-xl";
 
   return (
-    <>
-   
-  <div className="fixed top-0 left-0 w-[250px] h-screen bg-[#3f51b5] text-white pt-8 flex flex-col z-50">
-         <h2 className="text-center mb-10 text-xl font-semibold">Inventory</h2>
-         <Link to="/dashboard" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-           <MdDashboard className="text-xl" /> Dashboard
-         </Link>
-         <Link to="/inventory" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-           <MdInventory className="text-xl" /> Inventory
-         </Link>
-         <Link to="/AddItemsForm" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-           <MdAddBox className="text-xl" /> Add Items
-         </Link>
-         <Link to="/viewitems" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-           <MdList className="text-xl" /> View Items
-         </Link>
-         <Link to="/reports" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-           <MdAssessment className="text-xl" /> Reports
-         </Link>
-         <Link to="/settings" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-           <MdSettings className="text-xl" /> Settings
-         </Link>
-       </div>
-  
+    <div className={`flex h-screen font-sans antialiased ${darkMode ? 'dark' : ''}`}>
+      {/* Sidebar */}
+      <aside className={`fixed top-0 left-0 w-[250px] h-full flex flex-col z-50 transition-colors duration-300 shadow-xl print:hidden
+                       ${darkMode ? 'bg-slate-800 border-r border-slate-700' : 'bg-gradient-to-b from-indigo-600 to-indigo-700 border-r border-indigo-700'}`}>
+        <div className="flex items-center justify-center h-20 border-b border-white/20">
+          <MdSchool className={`text-3xl ${darkMode ? 'text-indigo-400' : 'text-white'}`} />
+          <h1 className={`ml-3 text-2xl font-bold tracking-tight ${darkMode ? 'text-slate-100' : 'text-white'}`}>School IMS</h1>
+        </div>
+        <nav className="flex-grow pt-5">
+          <NavLink to="/dashboard" className={sidebarLinkClass}><MdDashboard className={sidebarIconClass} /> Dashboard</NavLink>
+          <NavLink to="/inventory" className={sidebarLinkClass}><MdInventory className={sidebarIconClass} /> Inventory</NavLink>
+          <NavLink to="/AddItemsForm" className={sidebarLinkClass}><MdAddBox className={sidebarIconClass} /> Add Items</NavLink>
+          <NavLink to="/viewitems" className={sidebarLinkClass}><MdList className={sidebarIconClass} /> View Items</NavLink>
+          <NavLink to="/reports" className={sidebarLinkClass}><MdAssessment className={sidebarIconClass} /> Reports</NavLink>
+          <NavLink to="/settings" className={sidebarLinkClass}><MdSettings className={sidebarIconClass} /> Settings</NavLink>
+        </nav>
+      </aside>
 
-      {/* Navbar */}
-{/* Navbar */}
-<div className="grid grid-cols-3 items-center bg-gradient-to-r from-blue-500 to-indigo-500 text-white h-[70px] px-6 shadow-lg z-40">
-  {/* First Grid - Empty but keeps space (matches your second example) */}
-  <div className="flex justify-end">
-    <div className="relative w-[240px]">
-     <input
-  type="text"
-  placeholder="🔍 Search inventory..."
-  className="w-full py-2 px-4 rounded-xl bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-300 text-sm"
-  value={searchTerm} // Connect to state
-  onChange={(e) => setSearchTerm(e.target.value)} // Update state
-/>
-    </div>
-  </div>
+      {/* Main Content Area */}
+      <div className={`flex-1 flex flex-col ml-[250px] min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+        {/* Header */}
+        <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 transition-colors duration-300 print:hidden
+                           ${darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'} shadow-sm`}>
+          <div className="relative">
+      <input
+    type="text"
+    placeholder="Search inventory..."
+    className={`w-full py-2.5 pl-11 pr-4 rounded-lg text-sm transition-all duration-300 focus:ring-2 focus:outline-none focus:shadow-md
+                ${darkMode
+                  ? 'bg-slate-700 text-slate-200 placeholder-slate-400 focus:ring-indigo-500 border border-slate-600 hover:border-slate-500'
+                  : 'bg-white text-slate-700 placeholder-slate-400 focus:ring-indigo-500 border border-slate-300 hover:border-slate-400'}`}
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+  />
+          </div>
+          <div className="flex items-center gap-4">
+            <Link
+              to="/AddItemsForm"
+              className={`flex items-center gap-2 py-2.5 px-4 sm:px-5 rounded-lg text-sm font-semibold transition-all duration-300 ease-in-out group
+                          ${darkMode 
+                            ? 'bg-indigo-600 hover:bg-indigo-500 text-white focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-800' 
+                            : 'bg-indigo-500 hover:bg-indigo-600 text-white focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100'
+                          } hover:shadow-md active:scale-95`}
+            >
+              <MdAddBox className="text-lg transition-transform duration-300 group-hover:scale-110" />
+              Add New Item
+            </Link>
+          </div>
+        </header>
 
-  {/* Second Grid - Centered Title (matches your second example structure) */}
-  <div className="flex items-center justify-center">
-    <div className="flex items-center">
-      <div className="p-2 bg-white/10 rounded-lg mr-3">
-        <span className="text-xl">📦</span>
-      </div>
-      <span className="text-lg font-bold whitespace-nowrap">School Inventory Overview</span>
-    </div>
-  </div>
-
-  {/* Third Grid - Empty (balance) */}
-  <div></div>
-</div>
-
-
-{/* Content Section Below Navbar */}
-<div
-  className="flex flex-col pt-[80px] p-6 w-[calc(100%-400px)] text-[0.9rem] gap-6" 
-  style={{ marginLeft: '300px' }}
->
-
-
-
-  {/* Header and Add Item Button */}
-  <div className="flex justify-between items-center mb-4">
-    <h1 className="text-xl font-semibold">📋 Current Inventory</h1>
-    <Link
-  to="/AddItemsForm"
-  className="inline-flex items-center justify-center gap-3 bg-green-600 hover:bg-green-700 text-white py-4 px-6 rounded-[7px] text-sm font-medium transition-all duration-300 hover:shadow-md active:scale-95 border border-green-700 focus:outline-none focus:ring-2 focus:ring-green-300 min-w-[160px] h-12"
->
-  + Add New Item
-</Link>
-  </div>
-
-{loading ? (
-    <div className="flex justify-center items-center min-h-[300px]">
-      <LoadingSpinner />
-    </div>
-  ) : filteredItems.length === 0 ? (
-    <div className="text-center p-12 bg-white rounded-lg shadow-md">
-      <p className="mb-5 text-gray-600">
-        {items.length === 0
-          ? (
-            <div className="flex flex-col items-center">
-              <svg className="w-16 h-16 text-purple-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-              <span className="text-lg font-medium text-gray-700">Your inventory is empty</span>
-              <p className="text-gray-500 mt-2">Get started by adding your first item</p>
+        {/* Page Content */}
+        <main className="flex-1 p-6 pt-[104px] overflow-y-auto"> {/* 80px header + 24px padding = 104px */}
+          <div className="max-w-full mx-auto">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-6 gap-3">
+              <h1 className={`text-2xl sm:text-3xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>
+                Current Inventory
+              </h1>
+              <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                {sortedItems.length} item{sortedItems.length === 1 ? '' : 's'} found
+                {searchTerm && ` (filtered from ${items.length})`}
+              </p>
             </div>
-          )
-          : "No items match your search."}
-      </p>
-      <Link
-        to="/AddItemsForm"
-        className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-500 text-white rounded-lg hover:from-purple-700 hover:to-blue-600 transition-all"
-      >
-        <MdAddBox className="mr-2" />
-        {items.length === 0 ? "Add Your First Item" : "Add New Item"}
-      </Link>
-    </div>
-  ) : (
-    <div className="bg-white rounded-md shadow-md overflow-hidden">
-      <table className="w-full border-collapse text-[0.8rem]">
-               <thead className="bg-[#1e3a8a] text-white text-[0.75rem] uppercase">
-          <tr>
-            <th 
-              className="py-3 px-4 text-left border-b border-[#3b82f6] cursor-pointer hover:bg-[#2563eb] transition-colors"
-              onClick={() => requestSort('item_name')}
-            >
-              <div className="flex items-center">
-                Item Name
-                {sortConfig.key === 'item_name' && (
-                  <span className="ml-1">
-                    {sortConfig.direction === 'ascending' ? '↑' : '↓'}
-                  </span>
+
+            {loading ? (
+              <div className="flex justify-center items-center min-h-[400px]"> <LoadingSpinner /> </div>
+            ) : error ? (
+              <div className={`text-center p-8 sm:p-10 rounded-lg shadow-md ${darkMode ? 'bg-slate-800 text-red-400' : 'bg-white text-red-600'}`}>
+                <MdWarningAmber size={52} className="mx-auto mb-4" />
+                <h3 className="text-xl font-semibold mb-2">Error Loading Inventory</h3>
+                <p className="text-sm sm:text-base">{error.message || "Could not fetch inventory data. Please try again."}</p>
+                <button 
+                    onClick={() => fetchItems()}
+                    className={`mt-6 py-2.5 px-5 rounded-lg font-semibold text-sm transition-colors ${darkMode ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-indigo-500 hover:bg-indigo-600 text-white'}`}
+                > Retry </button>
+              </div>
+            ) : sortedItems.length === 0 ? (
+              <div className={`text-center p-10 sm:p-12 rounded-xl shadow-lg ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'} min-h-[350px] flex flex-col justify-center items-center`}>
+                <MdOutlineInventory2 className={`text-6xl sm:text-7xl mb-6 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`} />
+                <h3 className={`text-xl sm:text-2xl font-semibold mb-2 ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                  {searchTerm ? "No Items Match Your Search" : "Your Inventory is Looking Empty"}
+                </h3>
+                <p className={`mb-6 text-sm sm:text-base ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {searchTerm ? "Try different keywords or clear the search." : "Add your first item to get started!"}
+                </p>
+                {!searchTerm && (
+                  <Link
+                    to="/AddItemsForm"
+                    className={`flex items-center gap-2 py-2.5 px-5 rounded-lg text-sm font-semibold transition-all duration-300 group
+                                ${darkMode 
+                                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white focus-visible:ring-2 focus-visible:ring-indigo-400' 
+                                  : 'bg-indigo-500 hover:bg-indigo-600 text-white focus-visible:ring-2 focus-visible:ring-indigo-300'
+                                } hover:shadow-lg active:scale-95`}
+                  > <MdAddBox className="text-lg" /> Add First Item </Link>
                 )}
               </div>
-            </th>
-            <th 
-              className="py-3 px-4 text-left border-b border-[#3b82f6] cursor-pointer hover:bg-[#2563eb] transition-colors "
-              onClick={() => requestSort('category')}
-            >
-              <div className="flex items-center">
-                Category
-                {sortConfig.key === 'category' && (
-                  <span className="ml-1">
-                    {sortConfig.direction === 'ascending' ? '↑' : '↓'}
-                  </span>
-                )}
-              </div>
-            </th>
-            <th 
-              className="py-3 px-4 text-left border-b border-[#3b82f6] cursor-pointer hover:bg-[#2563eb] transition-colors "
-              onClick={() => requestSort('quantity')}
-            >
-              <div className="flex items-center">
-                Quantity
-                {sortConfig.key === 'quantity' && (
-                  <span className="ml-1">
-                    {sortConfig.direction === 'ascending' ? '↑' : '↓'}
-                  </span>
-                )}
-              </div>
-            </th>
-            <th 
-              className="py-3 px-4 text-left border-b border-[#3b82f6] cursor-pointer hover:bg-[#2563eb] transition-colors "
-              onClick={() => requestSort('status')}
-            >
-              <div className="flex items-center">
-                Status
-                {sortConfig.key === 'status' && (
-                  <span className="ml-1">
-                    {sortConfig.direction === 'ascending' ? '↑' : '↓'}
-                  </span>
-                )}
-              </div>
-            </th>
-            <th 
-              className="ppy-3 px-4 text-left border-b border-[#3b82f6] cursor-pointer hover:bg-[#2563eb] transition-colors "
-              onClick={() => requestSort('date_added')}
-            >
-              <div className="flex items-center">
-                Date Added
-                {sortConfig.key === 'date_added' && (
-                  <span className="ml-1">
-                    {sortConfig.direction === 'ascending' ? '↑' : '↓'}
-                  </span>
-                )}
-              </div>
-            </th>
-            <th className="py-2 px-3 text-left border-b">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sortedItems.map((item, index) => (  // Changed from filteredItems to sortedItems
-            <tr
-              key={item.id}
-              className={`hover:bg-gray-100 ${
-                activeRow === index ? "bg-blue-100" : ""
-              }`}
-            >
-              <td className="py-2 px-3 border-b">{item.item_name}</td>
-              <td className="py-2 px-3 border-b">{item.category}</td>
-              <td className="py-2 px-3 border-b">{item.quantity}</td>
-             <td
-  className={`py-2 px-3 border-b font-semibold ${
-    item.quantity === 0
-      ? "text-red-500"
-      : item.quantity < 5
-      ? "text-orange-400"
-      : "text-green-500"
-  }`}
->
-  {item.quantity === 0
-    ? "Out of Stock"
-    : item.quantity < 5
-    ? "Low Stock"
-    : "Available"}
-</td>
-              <td className="py-2 px-3 border-b">
-                {new Date(item.date_added).toLocaleDateString()}
-                </td>
-                <td className="py-2 px-3 border-b w-[220px] align-top">
-  {/* Ellipsis button for actions */}
+            ) : (
+              <div className={`rounded-lg shadow-xl overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'}`}>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[800px] text-sm">
+                    <thead className={`${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'} text-xs uppercase tracking-wider`}>
+                      <tr>
+                        {['Item Name', 'Category', 'Quantity', 'Status', 'Date Added'].map((header) => (
+                          <th 
+                            key={header}
+                            className={`py-3.5 px-4 text-left font-semibold cursor-pointer transition-colors ${darkMode ? 'hover:bg-slate-600' : 'hover:bg-slate-200'}`}
+                            onClick={() => requestSort(header.toLowerCase().replace(/ /g, '_'))}
+                          >
+                            <div className="flex items-center">
+                              {header}
+                              {getSortIcon(header.toLowerCase().replace(/ /g, '_'))}
+                            </div>
+                          </th>
+                        ))}
+                        <th className="py-3.5 px-4 text-center font-semibold">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`${darkMode ? 'divide-y divide-slate-700' : 'divide-y divide-slate-200'}`}>
+                      {sortedItems.map((item) => (
+                        <tr key={item.id} className={`${darkMode ? 'hover:bg-slate-700/60' : 'hover:bg-slate-50/70'} transition-colors duration-150`}>
+                          <td className={`py-3 px-4 whitespace-nowrap font-medium ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>{item.item_name}</td>
+                          <td className={`py-3 px-4 whitespace-nowrap ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>{item.category}</td>
+                          <td className={`py-3 px-4 whitespace-nowrap text-center font-medium ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>{item.quantity}</td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-full
+                              ${item.quantity === 0 ? (darkMode ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700')
+                              : item.quantity < 5 ? (darkMode ? 'bg-yellow-500/20 text-yellow-300' : 'bg-yellow-100 text-yellow-700')
+                              : (darkMode ? 'bg-green-500/20 text-green-300' : 'bg-green-100 text-green-700')}`}>
+                              {item.quantity === 0 ? "Out of Stock" : item.quantity < 5 ? "Low Stock" : "Available"}
+                            </span>
+                          </td>
+                          <td className={`py-3 px-4 whitespace-nowrap ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>{new Date(item.date_added).toLocaleDateString()}</td>
+                          <td className="py-2 px-4 text-center relative">
   <button
-    onClick={() => setShowActions(showActions === index ? null : index)}
-    className="flex flex-col items-center justify-center p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+    onClick={() => setActiveActionMenuId(activeActionMenuId === item.id ? null : item.id)}
+    className={`p-2 rounded-full transition-colors ${darkMode ? 'text-slate-400 hover:bg-slate-600 hover:text-slate-100' : 'text-slate-500 hover:bg-slate-200 hover:text-slate-700'}`}
     aria-label="Actions"
   >
-    <svg
-      className="w-5 h-5"
-      fill="currentColor"  
-      viewBox="0 0 24 24"
-    >
-      <circle cx="12" cy="6" r="2" />  {/* Top dot */}
-      <circle cx="12" cy="12" r="2" /> {/* Middle dot */}
-      <circle cx="12" cy="18" r="2" /> {/* Bottom dot */}
-    </svg>
+    <MdMoreVert size={20} />
   </button>
-
-  {/* Conditionally render the buttons only when toggled */}
-  {showActions === index && (
-    <div className="mt-3 flex gap-3 flex-wrap">
-      {/* Withdraw Button */}
+  {activeActionMenuId === item.id && (
+    <div
+      className={`absolute right-full mr-2.5 top-1/2 -translate-y-1/2 w-44 rounded-md shadow-xl z-20 
+                  ${darkMode ? 'bg-slate-700 border-slate-600' : 'bg-white border-slate-200'} border`}
+      // Add a ref here if you want click-outside-to-close for this menu specifically
+    >
+      {/* Close X Icon for the Action Menu Popover */}
       <button
-        onClick={() => setActiveRow(activeRow === index ? null : index)}
-        className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-[7px] text-sm font-medium transition-all duration-300 hover:shadow-md active:scale-95 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 min-w-[150px] h-10"
+        onClick={() => setActiveActionMenuId(null)}
+        aria-label="Close actions menu"
+        className={`absolute top-1 right-1 p-1 rounded-full transition-colors 
+                    ${darkMode ? 'text-slate-400 hover:bg-slate-600 hover:text-slate-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
       >
-        {activeRow === index ? "Cancel" : "Withdraw"}
-      </button>
-      
-      {/* Add Stock Button */}
-      <button
-        onClick={() => setActiveAddRow(activeAddRow === index ? null : index)}
-        className="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-[7px] text-sm font-medium transition-all duration-300 hover:shadow-md active:scale-95 border border-green-700 focus:outline-none focus:ring-2 focus:ring-green-300 min-w-[150px] h-10"
-      >
-        {activeAddRow === index ? "Cancel" : "Add Stock"}
+        <MdClose size={16} /> {/* Smaller icon for a smaller menu */}
       </button>
 
-      {/* Delete Button */}
-      <button
-        onClick={() => {
-          setItemToDelete(index);
-          setShowDeleteModal(true);
-        }}
-        className="bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded-[7px] text-sm font-medium transition-all duration-300 hover:shadow-md active:scale-95 border border-red-700 focus:outline-none focus:ring-2 focus:ring-red-300 min-w-[120px] h-8"
-        title="Delete item"
-      >
-        🗑️
-      </button>
+      {/* Menu Content - Add some padding-top if the X icon overlaps */}
+      <div className="p-1.5 pt-6"> {/* Increased pt-6 to make space for the close button */}
+        <button
+          onClick={() => { setActiveWithdrawRowId(item.id); setWithdrawInfo(prev => ({ ...prev, [item.id]: { name: '', quantity: '1' }})); setActiveActionMenuId(null); }}
+          className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-2.5 transition-colors
+                      ${darkMode ? 'text-slate-200 hover:bg-indigo-600 hover:text-white' : 'text-slate-700 hover:bg-indigo-100 hover:text-indigo-700'}`}
+        >
+          <MdSystemUpdateAlt className="text-base"/> Withdraw
+        </button>
+        <button
+          onClick={() => { setActiveAddStockRowId(item.id); setAddStockInfo(prev => ({ ...prev, [item.id]: '' })); setActiveActionMenuId(null); }}
+          className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-2.5 transition-colors
+                      ${darkMode ? 'text-slate-200 hover:bg-green-600 hover:text-white' : 'text-slate-700 hover:bg-green-100 hover:text-green-700'}`}
+        >
+          <MdAddCircleOutline className="text-base"/> Add Stock
+        </button>
+        <div className={`my-1.5 h-px ${darkMode ? 'bg-slate-600' : 'bg-slate-200'}`}></div>
+        <button
+          onClick={() => { setItemForDeleteModal(item); setActiveActionMenuId(null); /* handleDelete called by Swal */ }}
+          className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-2.5 transition-colors
+                      ${darkMode ? 'text-red-400 hover:bg-red-600 hover:text-white' : 'text-red-600 hover:bg-red-100 hover:text-red-700'}`}
+        >
+          <MdDeleteOutline className="text-base"/> Delete
+        </button>
+      </div>
     </div>
   )}
 </td>
-      
- {/* These modals should be outside the td element */}
-  {activeRow === index && (
-    <div className="fixed inset-0 z-[1000] overflow-y-auto">
-      <div className="fixed inset-0 bg-gradient-to-br from-black/30 to-black/50 backdrop-blur-md transition-opacity" />
-      <div className="flex min-h-full items-center justify-center p-8 text-center">
-        {/* Main modal container - added pb-8 for bottom padding */}
-        <div className="relative w-full transform overflow-hidden rounded-[1.5rem] bg-white p-10 text-left shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] transition-all sm:my-16 sm:max-w-xl min-h-[70vh] flex flex-col pb-8">
-          <button
-          onClick={() => setActiveRow(null)}
-          className="absolute top-6 right-6 p-2 rounded-full hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label="Close"
-        >
-          <svg
-            className="w-6 h-6 text-gray-500 hover:text-gray-700"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-
-        <div className="flex-grow">
-          {/* Withdraw icon */}
-          <div className="mx-auto flex flex-col items-center mb-6">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-50 to-blue-100 mb-5 shadow-inner">
-              <div className="p-3 bg-white rounded-full shadow-md">
-                <svg
-                  className="h-8 w-8 text-blue-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                  />
-                </svg>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-            
-            <h3 className="text-3xl font-bold text-gray-900 mb-2">
-              Withdraw Items
-            </h3>
-            <div className="w-16 h-1 bg-blue-200 rounded-full mb-4"></div>
+            )}
           </div>
-
-          {/* Form Content */}
-          <div className="space-y-6 px-4">
-          <div className="grid place-items-center w-full mt-6">
-  <div className="w-full max-w-md">
-    <label className="block text-sm font-medium text-gray-700 mb-6 text-left">
-      Recipient Name
-    </label>
-    <input
-      type="text"
-      placeholder="Who is receiving these items?"
-      value={withdrawInfo[index]?.name || ""}
-      onChange={(e) =>
-        setWithdrawInfo((prev) => ({
-          ...prev,
-          [index]: {
-            ...prev[index],
-            name: e.target.value,
-          },
-        }))
-      }
-      className="w-full px-5 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all placeholder-gray-400 placeholder-opacity-100"
-    />
-  </div>
-</div>
-
-
-<div className="grid place-items-center mt-8 w-full">
-  <div className="w-2/3 max-w-sm">  {/* Reduced from w-3/4 to w-2/3 and max-w-md to max-w-sm */}
-    <label className="block text-sm font-medium text-gray-700 mb-2 text-center">  {/* Reduced mb-3 to mb-2 */}
-      Quantity (Max: {item.quantity})
-    </label>
-  <input
-  type="number"
-  min="1"
-  max={item.quantity}
-  value={withdrawInfo[index]?.quantity || ""}
-  onChange={(e) => {
-    const value = Math.min(
-      item.quantity, 
-      Math.max(1, parseInt(e.target.value) || 1)  // Added missing parenthesis here
-    );
-    setWithdrawInfo((prev) => ({
-      ...prev,
-      [index]: {
-        ...prev[index],
-        quantity: value,
-      },
-    }));
-  }}
-  className="w-full px-5 py-3 text-lg bg-gray-50 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all placeholder-gray-400 h-12"
-  placeholder="Enter quantity"
-/>
-  </div>
-</div>
-
-
-
-
-
-
-            
-          </div>
-        </div>
-
-        {/* Buttons moved to bottom with margin */}
-        {/* Buttons container - positioned at bottom center with proper spacing */}
-        <div className="mt-8 px-4 w-full">
-  <div className="flex gap-4 justify-center mb-6"> {/* Added mb-6 for margin below button group */}
-    <button
-      onClick={() => setActiveRow(null)}
-      className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-2 rounded-[7px] text-sm font-medium transition-all duration-300 hover:shadow-md active:scale-95 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 min-w-[150px] h-10"
-    >
-      Cancel
-    </button>
-    <button
-      onClick={() => handleWithdraw(index, withdrawInfo[index]?.name, withdrawInfo[index]?.quantity)}
-      className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-[7px] text-sm font-medium transition-all duration-300 hover:shadow-md active:scale-95 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 min-w-[150px] h-10"
-    >
-      Confirm Withdrawal
-    </button>
-  </div>
-  
-  {whoTook[index] && (
-    <p className="text-xs text-gray-500 mt-2 text-center"> {/* Added mt-2 for spacing above text */}
-      Last withdrawal: <strong>{whoTook[index]}</strong>
-    </p>
-  )}
-</div>
+        </main>
       </div>
-    </div>
-  </div>
-)}
 
-  
-{activeAddRow === index && (
-  <div className="fixed inset-0 z-[1000] overflow-y-auto">
-    <div className="fixed inset-0 bg-gradient-to-br from-black/30 to-black/50 backdrop-blur-md transition-opacity" />
-    <div className="flex min-h-full items-center justify-center p-6 text-center">
-      <div className="relative w-full transform overflow-hidden rounded-[1.5rem] bg-white p-8 text-left shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] transition-all sm:my-8 sm:max-w-xl min-h-[60vh] flex flex-col pb-6">
-        
-        {/* Close Button */}
-        <button
-          onClick={() => setActiveAddRow(null)}
-          className="absolute top-6 right-6 p-2 rounded-full hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500"
-          aria-label="Close"
-        >
-          <svg
-            className="w-6 h-6 text-gray-500 hover:text-gray-700"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-
-        <div className="flex-grow">
-          {/* Header Section */}
-          <div className="mx-auto flex flex-col items-center mb-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-50 to-green-100 mb-4 shadow-inner">
-              <div className="p-3 bg-white rounded-full shadow-md">
-                <svg
-                  className="h-6 w-6 text-green-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
+      {/* MODALS */}
+      {/* Withdraw Modal */}
+      {activeWithdrawRowId && (() => {
+        const item = items.find(i => i.id === activeWithdrawRowId);
+        if (!item) return null; // Item might have been deleted
+        return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60  print:hidden animate-fadeIn"> {/* Or backdrop-blur-none */}
+      <div className={`relative w-full max-w-md p-6 sm:p-7 rounded-xl shadow-2xl ${darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900'} animate-scaleUp`}>
+            <button onClick={() => setActiveWithdrawRowId(null)} className={`absolute top-3.5 right-3.5 p-1.5 rounded-full transition-colors ${darkMode ? 'text-slate-400 hover:bg-slate-700 hover:text-slate-100' : 'text-slate-500 hover:bg-slate-200 hover:text-slate-700'}`}><MdClose size={22}/></button>
+            <div className="flex items-center mb-5 sm:mb-6">
+                <div className={`p-3 rounded-full mr-4 ${darkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}><MdSystemUpdateAlt size={24}/></div>
+                <div>
+                    <h3 className="text-lg sm:text-xl font-semibold">Withdraw Item</h3>
+                    <p className={`text-xs sm:text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>{item.item_name}</p>
+                </div>
+            </div>
+            <div className="space-y-4 text-sm">
+              <div>
+                <label htmlFor={`withdrawName-${item.id}`} className={`block font-medium mb-1.5 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Recipient Name</label>
+                <input type="text" id={`withdrawName-${item.id}`} placeholder="Enter full name"
+                       value={withdrawInfo[item.id]?.name || ""}
+                       onChange={(e) => setWithdrawInfo(prev => ({ ...prev, [item.id]: { ...prev[item.id], name: e.target.value }}))}
+                       className={`w-full px-3.5 py-2.5 rounded-md border transition-colors ${darkMode ? 'bg-slate-700 border-slate-600 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-400' : 'bg-slate-50 border-slate-300 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-400'}`} />
+              </div>
+              <div>
+                <label htmlFor={`withdrawQty-${item.id}`} className={`block font-medium mb-1.5 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Quantity (Available: {item.quantity})</label>
+                <input type="number" id={`withdrawQty-${item.id}`} min="1" max={item.quantity}
+                       value={withdrawInfo[item.id]?.quantity || ""}
+                       onChange={(e) => {
+                         const val = e.target.value ? Math.min(item.quantity, Math.max(1, parseInt(e.target.value))) : '';
+                         setWithdrawInfo(prev => ({ ...prev, [item.id]: { ...prev[item.id], quantity: val }}));
+                       }}
+                       className={`w-full px-3.5 py-2.5 rounded-md border transition-colors ${darkMode ? 'bg-slate-700 border-slate-600 focus:ring-indigo-500 focus:border-indigo-500' : 'bg-slate-50 border-slate-300 focus:ring-indigo-500 focus:border-indigo-500'}`} />
               </div>
             </div>
-            
-            <h3 className="text-2xl font-bold text-gray-900 mb-1">
-              Add Stock Quantity
-            </h3>
-            <p className="text-gray-600 mb-4">
-              <span className="font-semibold text-gray-800">{items[index]?.itemName}</span>
-            </p>
-            <div className="w-16 h-1 bg-green-200 rounded-full mb-4"></div>
-          </div>
-
-          {/* Input Field with Grid */}
-          <div className="grid place-items-center w-full mt-4">
-            <div className="w-2/3 max-w-sm">
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Quantity to Add
-                </label>
-                <span className="text-sm text-gray-500">
-                  Current: <span className="font-medium text-gray-700">{items[index]?.quantity || 0}</span>
-                </span>
-              </div>
-              <input
-                type="number"
-                min="1"
-                value={addStockInfo[index] || ""}
-                onChange={(e) => {
-                  const value = e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value)) || "";
-                  setAddStockInfo((prev) => ({
-                    ...prev,
-                    [index]: value,
-                  }));
-                }}
-                className="w-full px-5 py-3 text-lg bg-gray-50 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all placeholder-gray-400 h-12"
-                placeholder="0"
-              />
+            <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => setActiveWithdrawRowId(null)} className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}>Cancel</button>
+              <button onClick={() => handleWithdraw(item, withdrawInfo[item.id]?.name, withdrawInfo[item.id]?.quantity)}
+                      disabled={!withdrawInfo[item.id]?.name?.trim() || !withdrawInfo[item.id]?.quantity}
+                      className={`px-4 py-2 text-sm font-medium rounded-md text-white transition-colors ${darkMode ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-indigo-500 hover:bg-indigo-600'} disabled:opacity-60 disabled:cursor-not-allowed`}>Confirm Withdraw</button>
             </div>
+            {whoTook[item.id] && <p className={`mt-3 text-xs text-center ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Last withdrawn by: <strong>{whoTook[item.id]}</strong></p>}
           </div>
         </div>
+      )})()}
 
-        {/* Action Buttons */}
-        <div className="mt-6 px-4 w-full">
-          <div className="flex gap-4 justify-center">
-            <button
-              onClick={() => setActiveAddRow(null)}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-2 rounded-[7px] text-sm font-medium transition-all duration-300 hover:shadow-md active:scale-95 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 min-w-[150px] h-10"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => handleAddStock(index, addStockInfo[index])}
-              disabled={!addStockInfo[index]}
-              className="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-[7px] text-sm font-medium transition-all duration-300 hover:shadow-md active:scale-95 border border-green-700 focus:outline-none focus:ring-2 focus:ring-green-300 min-w-[150px] h-10 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              Confirm Addition
-            </button>
+      {/* Add Stock Modal */}
+  {activeAddStockRowId && (() => {
+    const item = items.find(i => i.id === activeAddStockRowId);
+    if (!item) return null;
+    return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60  print:hidden animate-fadeIn">
+      <div className={`relative w-full max-w-md p-6 sm:p-7 rounded-xl shadow-2xl ${darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900'} animate-scaleUp`}>
+        <button onClick={() => setActiveAddStockRowId(null)} className={`absolute top-3.5 right-3.5 p-1.5 rounded-full transition-colors ${darkMode ? 'text-slate-400 hover:bg-slate-700 hover:text-slate-100' : 'text-slate-500 hover:bg-slate-200 hover:text-slate-700'}`}><MdClose size={22}/></button>
+        <div className="flex items-center mb-5 sm:mb-6">
+            <div className={`p-3 rounded-full mr-4 ${darkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-600'}`}><MdAddCircleOutline size={24}/></div>
+            <div>
+                <h3 className="text-lg sm:text-xl font-semibold">Add Stock</h3>
+                <p className={`text-xs sm:text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>{item.item_name} (Current: {item.quantity})</p>
+            </div>
+        </div>
+        <div className="space-y-4 text-sm">
+          <div>
+            <label htmlFor={`addStockQty-${item.id}`} className={`block font-medium mb-1.5 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Quantity to Add</label>
+            <input type="number" id={`addStockQty-${item.id}`} min="1" placeholder="Enter quantity"
+                   value={addStockInfo[item.id] || ""}
+                   onChange={(e) => {
+                     const val = e.target.value ? Math.max(1, parseInt(e.target.value)) : '';
+                     setAddStockInfo(prev => ({ ...prev, [item.id]: val }));
+                   }}
+                   className={`w-full px-3.5 py-2.5 rounded-md border transition-colors ${darkMode ? 'bg-slate-700 border-slate-600 focus:ring-green-500 focus:border-green-500 placeholder-slate-400' : 'bg-slate-50 border-slate-300 focus:ring-green-500 focus:border-green-500 placeholder-slate-400'}`} />
           </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button onClick={() => setActiveAddStockRowId(null)} className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}>Cancel</button>
+          <button onClick={() => handleAddStock(item, addStockInfo[item.id])}
+                  disabled={!addStockInfo[item.id]}
+                  className={`px-4 py-2 text-sm font-medium rounded-md text-white transition-colors ${darkMode ? 'bg-green-600 hover:bg-green-500' : 'bg-green-500 hover:bg-green-600'} disabled:opacity-60 disabled:cursor-not-allowed`}>Confirm Addition</button>
         </div>
       </div>
     </div>
-  </div>
-)}
+  )})()}
 
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )}
+  {/* Delete Confirmation uses SweetAlert2, triggered by setItemForDeleteModal(item) then calling handleDelete() */}
 </div>
-{/* Delete Confirmation Modal */}
-{/* Delete Confirmation Modal */}
-{showDeleteModal && (
-  <div className="fixed inset-0 z-[1000] overflow-y-auto">
-    {/* Enhanced blur backdrop */}
-    <div className="fixed inset-0 bg-gradient-to-br from-black/30 to-black/50 backdrop-blur-md transition-opacity" />
-    
-    {/* Modal container */}
-    <div className="flex min-h-full items-center justify-center p-8 text-center">
-      {/* Modal panel */}
-      <div 
-        className="relative w-full transform overflow-hidden rounded-[1.5rem] bg-white p-10 text-left shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] transition-all sm:my-16 sm:max-w-md"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="modal-headline"
-      >
-        {/* Close button */}
-        <button
-          onClick={() => setShowDeleteModal(false)}
-          className="absolute top-6 right-6 p-2 rounded-full hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500"
-          aria-label="Close"
-        >
-          <svg
-            className="w-6 h-6 text-gray-500 hover:text-gray-700"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-
-        {/* Modal content */}
-        <div className="text-center">
-          {/* Warning icon */}
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-100 mb-6 shadow-inner">
-            <div className="p-3 bg-white rounded-full shadow-md">
-              <svg
-                className="h-8 w-8 text-red-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-            </div>
-          </div>
-          
-          {/* Modal title */}
-          <h3 
-            className="text-3xl font-bold text-gray-900 mb-2"
-            id="modal-headline"
-          >
-            Confirm Deletion
-          </h3>
-          <div className="w-16 h-1 bg-red-200 rounded-full mb-6 mx-auto"></div>
-          
-          <div className="mt-2 px-4">
-            <p className="text-gray-600 mb-8 text-lg">
-              Are you sure you want to delete this item? This action cannot be undone.
-            </p>
-          </div>
-        </div>
-
-        {/* Action buttons - matching other modals */}
-        <div className="mt-6 px-4 w-full">
-          <div className="flex gap-4 justify-center">
-            <button
-              onClick={() => setShowDeleteModal(false)}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-2 rounded-[7px] text-sm font-medium transition-all duration-300 hover:shadow-md active:scale-95 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 min-w-[150px] h-10"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleDelete}
-              className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-[7px] text-sm font-medium transition-all duration-300 hover:shadow-md active:scale-95 border border-red-700 focus:outline-none focus:ring-2 focus:ring-red-300 min-w-[150px] h-10"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
-</>
-);
+  );
 }
 
 export default Inventory;

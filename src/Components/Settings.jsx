@@ -1,5 +1,9 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useContext, useState, useEffect } from 'react';
+import { NavLink, useNavigate, Link } from 'react-router-dom'; // Added Link for simple navigation if needed
+import { ThemeContext } from '../contexts/ThemeContext';
+import Swal from 'sweetalert2';
+
+// Importing icons
 import {
   MdDashboard,
   MdInventory,
@@ -7,125 +11,540 @@ import {
   MdList,
   MdAssessment,
   MdSettings,
-} from "react-icons/md";
+  MdSchool, // For sidebar brand
+  MdPersonOutline, // Profile icon
+  MdTune, // Preferences icon (was MdPaletteOutline)
+  MdNotificationsNone, // Notifications icon
+  MdOutlineSave, // Save icon
+  MdWbSunny, // Light mode icon
+  MdModeNight, // Dark mode icon
+  MdBackup, // Backup icon
+  MdLogout, // Logout icon
+} from 'react-icons/md';
+import LoadingSpinner from "../Components/LoadingSpinner"; 
 
-const Settings = () => {
+// Simple Toggle Switch component (can be in its own file)
+const ToggleSwitch = ({ id, checked, onChange, label, darkMode }) => {
   return (
-    <div className="flex h-screen font-inter bg-[#f1f4f9]">
-      {/* Sidebar */}
-      <div className="fixed top-0 left-0 w-[250px] h-screen bg-[#3f51b5] text-white pt-8 flex flex-col z-50">
-        <h2 className="text-center mb-10 text-xl font-semibold">Settings</h2>
-        <Link to="/dashboard" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-          <MdDashboard className="text-xl" /> Dashboard
-        </Link>
-        <Link to="/inventory" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-          <MdInventory className="text-xl" /> Inventory
-        </Link>
-        <Link to="/AddItemsForm" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-          <MdAddBox className="text-xl" /> Add Items
-        </Link>
-        <Link to="/viewitems" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-          <MdList className="text-xl" /> View Items
-        </Link>
-        <Link to="/reports" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-          <MdAssessment className="text-xl" /> Reports
-        </Link>
-        <Link to="/settings" className="px-5 py-3 hover:bg-[#5c6bc0] transition-colors flex items-center gap-2">
-          <MdSettings className="text-xl" /> Settings
-        </Link>
+    <label htmlFor={id} className="flex items-center cursor-pointer select-none">
+      <div className="relative">
+        <input 
+          type="checkbox" 
+          id={id} 
+          className="sr-only peer" 
+          checked={checked} 
+          onChange={onChange} 
+        />
+        <div className={`block w-10 h-6 rounded-full transition-colors duration-150
+                        peer-checked:bg-indigo-500 dark:peer-checked:bg-indigo-600
+                        ${darkMode ? 'bg-slate-600' : 'bg-slate-300'}`}
+        ></div>
+        <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-150
+                        peer-checked:transform peer-checked:translate-x-full`}
+        ></div>
+      </div>
+      {label && <span className={`ml-3 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>{label}</span>}
+    </label>
+  );
+};
+
+
+function Settings() {
+  const { darkMode, setDarkMode } = useContext(ThemeContext);
+  const navigate = useNavigate();
+
+  // --- Mock Settings State ---
+  
+
+ const [currentUser, setCurrentUser] = useState(null); 
+const [profileInfo, setProfileInfo] = useState({
+  newName: '',
+  email: '',
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+});
+
+const [errors, setErrors] = useState({});
+
+useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch('http://localhost:3000/auth/current-user', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        const data = await response.json();
+        setCurrentUser(data.user);
+        // Pre-fill email with current user's email
+        setProfileInfo(prev => ({ ...prev, email: data.user.email }));
+      } catch (error) {
+        console.error("Failed to fetch user data:", error);
+      }
+    };
+
+    fetchCurrentUser();
+  }, []);
+
+
+  const [inventoryPrefs, setInventoryPrefs] = useState({
+    lowStockThreshold: '5',
+    defaultCategory: 'Stationery',
+  });
+  const [notificationSettings, setNotificationSettings] = useState({
+    emailAlerts: true,
+  });
+  // --- End Mock Settings State ---
+
+
+  
+
+  const handleProfileChange = (e) => {
+  const { name, value } = e.target;
+  setProfileInfo(prev => ({
+    ...prev,
+    [name]: value
+  }));
+  
+  // Clear error when user types
+  if (errors[name]) {
+    setErrors(prev => ({ ...prev, [name]: '' }));
+  }
+};
+
+const validateForm = () => {
+  const newErrors = {};
+  
+  // Name validation
+  if (profileInfo.newName && profileInfo.newName.length < 2) {
+    newErrors.newName = "Name must be at least 2 characters";
+  }
+  
+  // Email validation
+  if (!profileInfo.email) {
+    newErrors.email = "Email is required";
+  } else if (!/^\S+@\S+\.\S+$/.test(profileInfo.email)) {
+    newErrors.email = "Please enter a valid email";
+  }
+  
+  // Password validation (only if changing password)
+  if (profileInfo.newPassword || profileInfo.currentPassword) {
+    if (!profileInfo.currentPassword) {
+      newErrors.currentPassword = "Current password is required";
+    }
+    
+    if (profileInfo.newPassword.length < 8) {
+      newErrors.newPassword = "Password must be at least 8 characters";
+    }
+    
+    if (profileInfo.newPassword !== profileInfo.confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
+  }
+  
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
+
+  const handlePrefsChange = (e) => {
+    setInventoryPrefs(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+
+
+const handleSaveChanges = async () => {
+  if (!currentUser) {
+    console.error("No current user data available");
+    return;
+  }
+
+  if (!validateForm()) return;
+  
+  try {
+   const updateData = {
+      userId: currentUser.id,
+      ...(profileInfo.newName && { newName: profileInfo.newName }),
+      email: profileInfo.email,
+      ...(profileInfo.newPassword && {
+        currentPassword: profileInfo.currentPassword,
+        newPassword: profileInfo.newPassword
+      })
+    };
+
+    const response = await fetch("http://localhost:3000/auth/update-profile", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("token")}`
+      },
+      body: JSON.stringify(updateData)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to update profile");
+    }
+
+    // Show success notification
+ Swal.fire({
+  icon: 'success',
+  title: 'Profile Updated!',
+  text: 'Your profile has been successfully updated.',
+  background: darkMode ? '#1e293b' : '#ffffff',
+  color: darkMode ? '#e2e8f0' : '#1e293b',
+  confirmButtonColor: darkMode ? '#4f46e5' : '#6366f1',
+});
+
+    console.log("Profile updated successfully");
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    
+    // Show error notification
+   Swal.fire({
+  icon: 'error',
+  title: 'Update Failed',
+  text: error.message || 'Failed to update profile. Please try again.',
+  background: darkMode ? '#1e293b' : '#ffffff',
+  color: darkMode ? '#e2e8f0' : '#1e293b',
+  confirmButtonColor: darkMode ? '#4f46e5' : '#6366f1',
+});
+  }
+};
+
+const swalThemeProps = {
+    background: darkMode ? 'rgba(30, 41, 59, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+    color: darkMode ? '#e2e8f0' : '#1e293b',
+    customClass: {
+      popup: 'rounded-xl shadow-2xl p-4 sm:p-6',
+      confirmButton: `px-5 py-2.5 rounded-lg font-semibold text-white text-sm ${darkMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-indigo-500 hover:bg-indigo-600'}`,
+      cancelButton: `px-5 py-2.5 rounded-lg font-semibold text-sm ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`,
+      title: `text-lg sm:text-xl font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`,
+      htmlContainer: `text-sm ${darkMode ? 'text-slate-300' : 'text-slate-600'}`,
+      icon: 'text-4xl sm:text-5xl mt-2 mb-2 sm:mb-4',
+    },
+    buttonsStyling: false,
+    backdrop: `rgba(0,0,0,0.65)`
+  };
+
+  const handleLogout = () => {
+    Swal.fire({
+      ...swalThemeProps,
+      title: 'Log Out?',
+      html: `
+        <div class="flex flex-col items-center gap-4">
+          <span class="${darkMode ? 'text-yellow-300' : 'text-yellow-500'}">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+            </svg>
+          </span>
+          <p class="text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-center">
+            Are you sure you want to end your session?<br>You’ll need to log in again to access your account.
+          </p>
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, log me out',
+      cancelButtonText: 'Cancel',
+      reverseButtons: false,
+      focusCancel: true,
+      customClass: {
+        popup: darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900',
+        actions: 'flex justify-center gap-4 mt-6',
+        confirmButton: 'bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded shadow',
+        cancelButton: 'bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded shadow',
+      },
+      buttonsStyling: false,
+    }).then((result) => {
+      if (result.isConfirmed) {
+        localStorage.removeItem("token");
+        // Update auth state
+        navigate("/login");
+      }
+    });
+  };
+  const handleBackup = () => alert("Backup initiated (mock)!");
+  const handleImport = () => alert("Import functionality coming soon (mock)");
+
+
+  const sidebarLinkClass = ({ isActive }) =>
+    `px-5 py-3.5 hover:bg-white/20 transition-colors flex items-center gap-3.5 text-sm font-medium rounded-lg mx-3 my-1.5 ${
+      isActive 
+        ? (darkMode ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/30 text-white shadow-md') 
+        : (darkMode ? 'text-slate-300 hover:text-white hover:bg-slate-700/50' : 'text-indigo-100 hover:text-white')
+    }`;
+  const sidebarIconClass = "text-xl";
+
+  const cardBaseClass = `rounded-xl shadow-lg p-6 sm:p-8 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'}`;
+  const cardTitleClass = `text-xl font-semibold mb-6 flex items-center gap-3 ${darkMode ? 'text-slate-100' : 'text-slate-800'}`;
+  
+  const formGroupClass = "flex flex-col gap-1.5";
+  const labelClass = `block text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-slate-700'}`;
+  const inputBaseClass = `w-full px-3.5 py-2.5 rounded-md border text-sm transition-colors duration-150 focus:ring-2 focus-visible:outline-none
+                        ${darkMode ? 'bg-slate-700 border-slate-600 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-400 text-slate-100' 
+                                  : 'bg-white border-slate-300 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-400 text-slate-800'}`;
+
+
+  return (
+    <div className={`flex h-screen font-sans antialiased ${darkMode ? 'dark' : ''}`}>
+      {/* Sidebar (Identical to Inventory Page) */}
+      <aside className={`fixed top-0 left-0 w-[250px] h-full flex flex-col z-50 transition-colors duration-300 shadow-xl print:hidden
+                       ${darkMode ? 'bg-slate-800 border-r border-slate-700' : 'bg-gradient-to-b from-indigo-600 to-indigo-700 border-r border-indigo-700'}`}>
+        <div className="flex items-center justify-center h-20 border-b border-white/20">
+          <MdSchool className={`text-3xl ${darkMode ? 'text-indigo-400' : 'text-white'}`} />
+          <h1 className={`ml-3 text-2xl font-bold tracking-tight ${darkMode ? 'text-slate-100' : 'text-white'}`}>School IMS</h1>
+        </div>
+        <nav className="flex-grow pt-5">
+          <NavLink to="/dashboard" className={sidebarLinkClass}><MdDashboard className={sidebarIconClass} /> Dashboard</NavLink>
+          <NavLink to="/inventory" className={sidebarLinkClass}><MdInventory className={sidebarIconClass} /> Inventory</NavLink>
+          <NavLink to="/AddItemsForm" className={sidebarLinkClass}><MdAddBox className={sidebarIconClass} /> Add Items</NavLink>
+          <NavLink to="/viewitems" className={sidebarLinkClass}><MdList className={sidebarIconClass} /> View Items</NavLink>
+          <NavLink to="/reports" className={sidebarLinkClass}><MdAssessment className={sidebarIconClass} /> Reports</NavLink>
+          <NavLink to="/settings" className={sidebarLinkClass}><MdSettings className={sidebarIconClass} /> Settings</NavLink>
+        </nav>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className={`flex-1 flex flex-col ml-[250px] min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+        {/* Header (Same structure, title changed) */}
+        <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 transition-colors duration-300 print:hidden
+                           ${darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'} shadow-sm`}>
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-lg ${darkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
+              <MdSettings size={24}/>
+            </div>
+            <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
+              Application Settings
+            </h2>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              aria-label="Toggle Dark Mode"
+              className={`p-2.5 rounded-full transition-colors duration-300
+                          ${darkMode ? 'bg-slate-700 hover:bg-slate-600 text-yellow-400' : 'bg-slate-200 hover:bg-slate-300 text-indigo-600'}`}
+            >
+              {darkMode ? <MdWbSunny size={22}/> : <MdModeNight size={22} />}
+            </button>
+          </div>
+        </header>
+
+        {/* Page Content for Settings */}
+        <main className="flex-1 p-6 pt-[104px] overflow-y-auto"> {/* 80px header + 24px padding */}
+          <div className="max-w-4xl mx-auto space-y-8">
+            
+            {/* Settings Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              
+              {/* Profile Information Card */}
+             <section className={cardBaseClass}>
+    <h3 className={cardTitleClass}>
+    <MdPersonOutline className="text-2xl text-sky-500" />
+    Profile Information
+  </h3>
+
+  {!currentUser ? (
+    <div className="flex justify-center py-8">
+      <LoadingSpinner /> {/* Or some other loading indicator */}
+    </div>
+  ) : (
+    <div className="space-y-5">
+      {/* Current Name Display */}
+      <div className={formGroupClass}>
+        <label className={labelClass}>Current Name</label>
+        <div className="px-3 py-2 bg-gray-100 dark:bg-slate-700 rounded-md">
+          <p className="text-gray-800 dark:text-gray-200">
+            {currentUser.name || 'Not specified'}
+          </p>
+        </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 ml-[250px]">
-        {/* Navbar */}
-        <div className="bg-[#4c8bf5] text-white py-4 px-6 text-lg font-bold text-center fixed top-0 left-[250px] right-0 z-10">
-          ⚙️ Settings
-        </div>
 
-        {/* Content */}
-        <div className="mt-20 px-8 py-6 overflow-y-auto">
-          <h1 className="mb-8 text-2xl font-semibold text-[#3f51b5]">Manage Your Preferences</h1>
+    {/* New Name Input */}
+    <div className={formGroupClass}>
+      <label htmlFor="newName" className={labelClass}>New Name</label>
+      <input
+        type="text"
+        id="newName"
+        name="newName"
+        value={profileInfo.newName}
+        onChange={handleProfileChange}
+        placeholder="Enter new name"
+        className={inputBaseClass}
+      />
+      {errors.newName && <p className="text-red-500 text-sm mt-1">{errors.newName}</p>}
+    </div>
 
-          <div className="grid gap-5 max-w-[1200px] mx-auto grid-cols-1 md:grid-cols-2">
-            {/* Profile Info */}
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">👤 Profile Information</h2>
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col">
-                  <label htmlFor="username" className="mb-1 font-semibold text-gray-700">Username</label>
-                  <input type="text" id="username" placeholder="e.g. johndoe" className="p-2 border border-gray-300 rounded-lg bg-gray-100" />
+    {/* Email Address */}
+    <div className={formGroupClass}>
+      <label htmlFor="email" className={labelClass}>Email Address</label>
+      <input
+        type="email"
+        id="email"
+        name="email"
+        value={profileInfo.email}
+        onChange={handleProfileChange}
+        placeholder="e.g. user@school.edu"
+        className={inputBaseClass}
+      />
+      {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+    </div>
+
+    {/* Password Change Section */}
+    <div className="space-y-4 border-t pt-4 border-gray-200 dark:border-slate-700">
+      <h4 className="font-medium text-gray-700 dark:text-gray-300">Password Change</h4>
+      
+      {/* Current Password */}
+      <div className={formGroupClass}>
+        <label htmlFor="currentPassword" className={labelClass}>Current Password</label>
+        <input
+          type="password"
+          id="currentPassword"
+          name="currentPassword"
+          value={profileInfo.currentPassword}
+          onChange={handleProfileChange}
+          placeholder="Enter current password"
+          className={inputBaseClass}
+        />
+        {errors.currentPassword && <p className="text-red-500 text-sm mt-1">{errors.currentPassword}</p>}
+      </div>
+
+      {/* New Password */}
+      <div className={formGroupClass}>
+        <label htmlFor="newPassword" className={labelClass}>New Password</label>
+        <input
+          type="password"
+          id="newPassword"
+          name="newPassword"
+          value={profileInfo.newPassword}
+          onChange={handleProfileChange}
+          placeholder="Enter new password (min 8 characters)"
+          className={inputBaseClass}
+        />
+        {errors.newPassword && <p className="text-red-500 text-sm mt-1">{errors.newPassword}</p>}
+      </div>
+
+      {/* Confirm New Password */}
+      <div className={formGroupClass}>
+        <label htmlFor="confirmPassword" className={labelClass}>Confirm New Password</label>
+        <input
+          type="password"
+          id="confirmPassword"
+          name="confirmPassword"
+          value={profileInfo.confirmPassword}
+          onChange={handleProfileChange}
+          placeholder="Confirm new password"
+          className={inputBaseClass}
+        />
+        {errors.confirmPassword && <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>}
+      </div>
+    </div>
+  </div>
+  )}
+</section>
+
+              {/* Inventory Preferences Card */}
+              <section className={cardBaseClass}>
+                <h3 className={cardTitleClass}>
+                  <MdTune className="text-2xl text-emerald-500" />
+                  Inventory Preferences
+                </h3>
+                <div className="space-y-5">
+                  <div className={formGroupClass}>
+                    <label htmlFor="lowStockThreshold" className={labelClass}>Low Stock Alert Threshold</label>
+                    <input type="number" id="lowStockThreshold" name="lowStockThreshold" value={inventoryPrefs.lowStockThreshold} onChange={handlePrefsChange} min="0" placeholder="e.g., 5" className={inputBaseClass} />
+                  </div>
+                  <div className={formGroupClass}>
+                    <label htmlFor="defaultCategory" className={labelClass}>Default Category for New Items</label>
+                    <select id="defaultCategory" name="defaultCategory" value={inventoryPrefs.defaultCategory} onChange={handlePrefsChange} className={`${inputBaseClass} ${inventoryPrefs.defaultCategory === "" ? (darkMode ? 'text-slate-400':'text-slate-500') : ''}`}>
+                      <option value="">None</option>
+                      <option value="Stationery">Stationery</option>
+                      <option value="Furniture">Furniture</option>
+                      <option value="Lab Equipment">Lab Equipment</option>
+                      <option value="Electronics">Electronics</option>
+                      <option value="Books">Books</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                   <div className="pt-2">
+                    <ToggleSwitch 
+                        id="darkModeToggleSettingsPage" // Different ID from header one
+                        checked={darkMode}
+                        onChange={() => setDarkMode(!darkMode)}
+                        label="Enable Dark Mode"
+                        darkMode={darkMode}
+                    />
+                  </div>
                 </div>
-                <div className="flex flex-col">
-                  <label htmlFor="email" className="mb-1 font-semibold text-gray-700">Email Address</label>
-                  <input type="email" id="email" placeholder="e.g. user@school.edu" className="p-2 border border-gray-300 rounded-lg bg-gray-100" />
-                </div>
-                <div className="flex flex-col">
-                  <label htmlFor="password" className="mb-1 font-semibold text-gray-700">Change Password</label>
-                  <input type="password" id="password" placeholder="••••••••" className="p-2 border border-gray-300 rounded-lg bg-gray-100" />
-                </div>
-              </div>
+              </section>
             </div>
 
-            {/* Preferences */}
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">⚙️ Inventory Preferences</h2>
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col">
-                  <label htmlFor="low-stock" className="mb-1 font-semibold text-gray-700">Low Stock Alert Threshold</label>
-                  <input type="text" id="low-stock" placeholder="e.g. 5" className="p-2 border border-gray-300 rounded-lg bg-gray-100" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Notification Settings Card */}
+              <section className={cardBaseClass}>
+                <h3 className={cardTitleClass}>
+                  <MdNotificationsNone className="text-2xl text-amber-500" />
+                  Notification Settings
+                </h3>
+                <div className="space-y-4">
+                    <ToggleSwitch
+                        id="emailAlertsToggle"
+                        checked={notificationSettings.emailAlerts}
+                        onChange={(e) => setNotificationSettings(prev => ({...prev, emailAlerts: e.target.checked}))}
+                        label="Receive Email Alerts for Low Stock"
+                        darkMode={darkMode}
+                    />
+                    {/* Add more notification toggles here */}
                 </div>
-                <div className="flex flex-col">
-                  <label htmlFor="default-category" className="mb-1 font-semibold text-gray-700">Default Category</label>
-                  <select id="default-category" className="p-2 border border-gray-300 rounded-lg bg-gray-100">
-                    <option>Stationery</option>
-                    <option>Furniture</option>
-                    <option>Lab Equipment</option>
-                    <option>Cleaning Supplies</option>
-                  </select>
+              </section>
+
+              {/* Backup & Restore Card */}
+              <section className={cardBaseClass}>
+                <h3 className={cardTitleClass}>
+                  <MdBackup className="text-2xl text-fuchsia-500" />
+                  Backup & Restore
+                </h3>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <button
+                    onClick={handleBackup}
+                    className={`w-full sm:w-auto flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors
+                                ${darkMode ? 'bg-sky-600 hover:bg-sky-500 text-white' : 'bg-sky-500 hover:bg-sky-600 text-white'}`}
+                  > <MdBackup/> Backup Data </button>
+                  <button
+                    onClick={handleImport}
+                    className={`w-full sm:w-auto flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors
+                                ${darkMode ? 'bg-teal-600 hover:bg-teal-500 text-white' : 'bg-teal-500 hover:bg-teal-600 text-white'}`}
+                  > <MdSettings className="-rotate-90"/> Import Backup </button> {/* Using settings icon rotated */}
                 </div>
-              </div>
+              </section>
             </div>
 
-            {/* Notifications */}
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">🔔 Notification Settings</h2>
-              <div className="flex flex-col gap-4">
-                <label className="flex items-center text-gray-700">
-                  <input type="checkbox" defaultChecked className="mr-2" /> Email Alerts
-                </label>
-                <label className="flex items-center text-gray-700">
-                  <input type="checkbox" defaultChecked className="mr-2" /> Weekly Inventory Summary
-                </label>
-              </div>
+
+            {/* Save Changes and Logout Buttons */}
+            <div className="flex flex-col sm:flex-row justify-end items-center gap-4 pt-6 border-t mt-4 ${darkMode ? 'border-slate-700' : 'border-slate-200'}">
+              <button
+                onClick={handleLogout}
+                className={`w-full sm:w-auto flex items-center justify-center gap-2 py-2.5 px-5 rounded-lg text-sm font-semibold transition-colors
+                            ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}
+              > <MdLogout /> Logout </button>
+              <button
+                onClick={handleSaveChanges}
+                className={`w-full sm:w-auto flex items-center justify-center gap-2.5 py-2.5 px-6 rounded-lg text-sm font-semibold transition-all duration-300 ease-in-out group
+                            ${darkMode 
+                              ? 'bg-indigo-600 hover:bg-indigo-500 text-white focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900' 
+                              : 'bg-indigo-500 hover:bg-indigo-600 text-white focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100'
+                            } hover:shadow-lg active:scale-95`}
+              > <MdOutlineSave className="text-lg" /> Save All Changes </button>
             </div>
 
-            {/* Backup */}
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">💾 Backup & Restore</h2>
-              <div className="flex gap-4 flex-wrap">
-                <button onClick={() => alert("Backup initiated!")} className="bg-[#3f51b5] hover:bg-[#5c6bc0] text-white font-bold py-2 px-4 rounded transition-colors">
-                  Backup Data
-                </button>
-                <button onClick={() => alert("Import functionality coming soon")} className="bg-[#3f51b5] hover:bg-[#5c6bc0] text-white font-bold py-2 px-4 rounded transition-colors">
-                  Import Backup
-                </button>
-              </div>
-            </div>
           </div>
-
-          {/* Save & Logout Buttons */}
-          <div className="mt-8 flex gap-4 flex-wrap">
-            <button onClick={() => alert("Changes saved!")} className="bg-[#3f51b5] hover:bg-[#5c6bc0] text-white font-bold py-2 px-4 rounded transition-colors">
-              ✅ Save Changes
-            </button>
-            <button onClick={() => alert("Logging out...")} className="bg-[#3f51b5] hover:bg-[#5c6bc0] text-white font-bold py-2 px-4 rounded transition-colors">
-              🚪 Logout
-            </button>
-          </div>
-        </div>
+        </main>
       </div>
     </div>
   );
-};
+}
 
 export default Settings;

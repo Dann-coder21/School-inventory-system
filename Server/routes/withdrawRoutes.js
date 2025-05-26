@@ -77,16 +77,18 @@ withdrawRouter.post("/withdraw", verifyToken, async (req, res) => {
     await conn.commit();
     
     res.status(200).json({ 
-      message: "Withdrawal successful",
-      updatedItem: updatedItem[0],
-      withdrawalDetails: {
-        itemId: item_id,
-        itemName: item.item_name,
-        quantity,
-        withdrawnBy: withdrawn_by,
-        timestamp: new Date().toISOString()
-      }
-    });
+  success: true, // ✅ Add this
+  message: "Withdrawal successful",
+  updatedItem: updatedItem[0],
+  withdrawalDetails: {
+    itemId: item_id,
+    itemName: item.item_name,
+    quantity,
+    withdrawnBy: withdrawn_by,
+    timestamp: new Date().toISOString()
+  }
+});
+
 
   } catch (error) {
     console.error("Withdrawal error:", error);

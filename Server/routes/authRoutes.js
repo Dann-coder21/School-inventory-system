@@ -97,4 +97,63 @@ router.get("/dashboard", verifyToken, async (req, res) => {
   // Note: Don't close the connection - we're reusing it
 });
 
+// Add this route to your existing authRoutes.js
+// In your authRoutes.js (backend)
+router.put("/update-profile", verifyToken, async (req, res) => {
+  const { newName, email, currentPassword, newPassword } = req.body;
+
+  try {
+    const db = await connectToDatabase();
+    const [user] = await db.query("SELECT * FROM users WHERE id = ?", [req.userId]);
+
+    // Verify current password if changing password
+    if (newPassword) {
+      const valid = await bcrypt.compare(currentPassword, user[0].password);
+      if (!valid) return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    // Build update object
+    const updates = {
+      name: newName || user[0].name,
+      email: email || user[0].email
+    };
+
+    if (newPassword) {
+      updates.password = await bcrypt.hash(newPassword, 10);
+    }
+
+    await db.query(
+      "UPDATE users SET name = ?, email = ?, password = ? WHERE id = ?",
+      [updates.name, updates.email, updates.password, req.userId]
+    );
+
+    // Return updated user data (excluding password)
+    const { password, ...userData } = updates;
+    res.json({ 
+      message: "Profile updated successfully",
+      user: userData
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: "Error updating profile" });
+  }
+});
+
+// In your authRoutes.js
+router.get('/current-user', verifyToken, async (req, res) => {
+  try {
+    const db = await connectToDatabase();
+    const [rows] = await db.query(
+      "SELECT id, fullname as name, email FROM users WHERE id = ?", 
+      [req.userId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json({ user: rows[0] });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 export default router;

@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from "react";
+import React, { createContext, useState, useEffect, useCallback } from "react";
 import axios from "axios";
 
 
@@ -36,9 +36,10 @@ export const InventoryProvider = ({ children }) => {
     };
   }, []);
 
-  const fetchItems = async () => {
-    setLoading(true);
-    setError(null);
+  
+const fetchItems = useCallback(async () => {
+  setLoading(true);
+  setError(null);
     
     try {
       const token = localStorage.getItem('token');
@@ -74,7 +75,7 @@ export const InventoryProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Add a function to update local storage and state consistently
   const updateItems = (newItems) => {
@@ -85,7 +86,7 @@ export const InventoryProvider = ({ children }) => {
     }));
   };
 
-  const addItem = async (newItem) => {
+const addItem = useCallback(async (newItem) => {
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No authentication token');
@@ -109,13 +110,14 @@ export const InventoryProvider = ({ children }) => {
       console.error('Add item error:', err);
       throw err;
     }
-  };
+  }, [fetchItems]);
 
   return (
     <InventoryContext.Provider value={{ 
       items, 
       loading, 
       error, 
+      setItems,
       addItem, 
       fetchItems,
       updateItems // Expose the update function
