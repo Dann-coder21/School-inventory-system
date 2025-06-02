@@ -1,209 +1,255 @@
 @media print {
   /* --- Page Setup & Defaults --- */
   @page {
-    size: A4 portrait; /* Standard A4, portrait orientation */
-    margin: 15mm 12mm 15mm 12mm; /* Top, Right, Bottom, Left margins */
+    size: A4 portrait;
+    margin: 15mm 12mm 15mm 12mm;
+    @top-center {
+      content: "Inventory Management Report";
+      font-size: 12pt;
+      color: #2c3e50;
+      font-weight: 600;
+    }
+    @bottom-center {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 10pt;
+      color: #7f8c8d;
+    }
   }
 
-  html, body { /* Apply to html as well for some browser consistency */
+  html, body {
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    font-size: 10pt; /* Slightly smaller for more content, adjust as needed */
-    font-family: 'Helvetica Neue', 'Arial Nova', 'Nimbus Sans', Arial, sans-serif; /* Modern, widely available sans-serif */
-    color: #333; /* Dark gray for text, not pure black for better readability */
-    background: #fff !important; /* Ensure white background */
-    line-height: 1.4; /* Slightly more line spacing */
-    -webkit-print-color-adjust: exact !important; /* Force browsers to print background colors/images if needed (use sparingly) */
+    font-size: 11pt;
+    font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    color: #2c3e50;
+    background: #fff !important;
+    line-height: 1.5;
+    -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
   /* --- Hide Screen-Only Elements --- */
   .no-print,
-  nav, /* Common tag for navigation sidebars/headers */
-  header, /* Common tag for page headers */
-  footer, /* Common tag for page footers */
-  aside, /* Common tag for sidebars */
-  form button[type="submit"], /* Hide submit buttons, etc. */
-  button, /* General buttons */
-  input[type="search"], /* Hide search inputs */
-  .action-buttons /* If you have a specific class for action buttons */
-  {
+  nav, header, footer, aside,
+  button, .action-buttons, .date-filter-container,
+  .print-hide {
     display: none !important;
-    visibility: hidden !important; /* Stronger hiding */
+    visibility: hidden !important;
   }
 
-  /* --- Main Content Area for Print --- */
-  .print-content {
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important; /* Remove padding from print-content if @page margin is sufficient */
-    background: #fff !important;
-    /* page-break-before: always; */ /* Uncomment if you want print-content to start on a new page */
-  }
-
-  /* --- Print-Specific Header (e.g., Report Title, Date) --- */
+  /* --- Print-Specific Header --- */
   .print-header {
     display: block !important;
     text-align: center;
-    margin-bottom: 10mm;
+    margin-bottom: 8mm;
     padding-bottom: 5mm;
-    border-bottom: 1.5px solid #555; /* Subtler border */
+    border-bottom: 1px solid #3498db;
   }
-  .print-header h1 { /* Style h1 inside print-header */
-    font-size: 16pt;
-    color: #1a237e; /* Darker, professional blue */
-    margin-bottom: 2mm;
+  
+  .print-header h1 {
+    font-size: 24pt;
+    color: #2980b9 !important;
+    margin-bottom: 3mm;
     font-weight: 600;
+    letter-spacing: -0.5px;
   }
-  .print-header p { /* Style p inside print-header */
-    font-size: 9pt;
-    color: #444;
+  
+  .print-header .report-meta {
+    display: flex;
+    justify-content: center;
+    gap: 15mm;
+    font-size: 10pt;
+    color: #7f8c8d;
+    margin-top: 3mm;
+  }
+
+  /* --- Print Watermark --- */
+  .print-watermark {
+    display: block !important;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    font-size: 72px;
+    font-weight: bold;
+    color: rgba(44, 62, 80, 0.1);
+    z-index: -1;
+    pointer-events: none;
   }
 
   /* --- Summary Section --- */
-  .print-summary-grid { /* Renamed for clarity */
+  .print-summary-grid {
     display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* Responsive columns */
-    gap: 6mm;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5mm;
     margin-bottom: 10mm;
-    padding: 5mm;
-    border: 1px solid #ccc;
-    border-radius: 4px; /* Subtle rounding can be okay if printer handles it */
-    background-color: #f9f9f9; /* Very light gray for differentiation */
-    page-break-inside: avoid; /* Try to keep summary on one page */
+    padding: 5mm 0;
+    border-bottom: 1px solid #ecf0f1;
+    page-break-inside: avoid;
   }
-  .print-summary-grid > div { /* Style for individual summary items */
-    padding: 3mm;
-    text-align: left; /* Align text left for better readability of labels */
+  
+  .summary-card {
+    text-align: center;
+    padding: 4mm;
+    border: 1px solid #ecf0f1;
+    border-radius: 4px;
+    background: #f8fafc;
+    position: relative;
   }
-  .print-summary-grid h3, .print-summary-grid .summary-label { /* For labels */
-    font-size: 9.5pt;
-    color: #555;
-    margin-bottom: 1mm;
-    font-weight: normal;
+  
+  .summary-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
   }
-  .print-summary-grid p, .print-summary-grid .summary-value { /* For values */
-    font-size: 11pt;
-    color: #222;
-    font-weight: bold;
-  }
-
-
-  /* --- General Section Styling & Page Breaks --- */
-  .print-section {
-    page-break-inside: avoid !important; /* Critical for keeping sections together */
-    break-inside: avoid !important;
-    margin-bottom: 8mm;
-  }
-  .print-section h2 { /* Titles for sections like "Low Stock Items" */
-    font-size: 13pt;
-    color: #1a237e; /* Consistent dark blue */
-    margin-bottom: 4mm;
-    padding-bottom: 2mm;
-    border-bottom: 1px solid #ddd;
+  
+  .summary-card[data-color="blue"]::before { background: #3498db; }
+  .summary-card[data-color="green"]::before { background: #2ecc71; }
+  .summary-card[data-color="red"]::before { background: #e74c3c; }
+  .summary-card[data-color="yellow"]::before { background: #f39c12; }
+  
+  .summary-card h3 {
+    font-size: 10.5pt;
+    color: #7f8c8d;
+    margin-bottom: 3mm;
     font-weight: 600;
-    page-break-after: avoid !important; /* Don't break page immediately after a heading */
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .summary-card .value {
+    font-size: 20pt;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 2mm;
+    line-height: 1;
+  }
+  
+  .summary-card .description {
+    font-size: 9.5pt;
+    color: #95a5a6;
   }
 
+  /* --- Section Styling --- */
+  .print-section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    margin-bottom: 10mm;
+  }
+  
+  .print-section h2 {
+    font-size: 14pt;
+    color: #2980b9;
+    margin-bottom: 5mm;
+    padding-bottom: 3mm;
+    border-bottom: 2px solid #3498db;
+    font-weight: 600;
+    page-break-after: avoid;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  
+  .print-section h2::before {
+    content: "•";
+    margin-right: 8px;
+    color: #3498db;
+    font-size: 18pt;
+    line-height: 0;
+  }
 
   /* --- Table Styling --- */
   .print-table {
     width: 100%;
-    font-size: 9pt; /* Slightly smaller for tables */
+    font-size: 10pt;
     border-collapse: collapse;
     margin-bottom: 8mm;
-    /* page-break-inside: auto; */ /* Allow tables to break if very long, but try to keep rows together */
+    page-break-inside: avoid;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   }
-  .print-table caption { /* If you use table captions */
-    font-size: 11pt;
-    font-weight: bold;
-    margin-bottom: 3mm;
-    text-align: left;
-    color: #333;
+  
+  .print-table thead {
+    border-bottom: 2px solid #3498db;
   }
-  .print-table th,
-  .print-table td {
-    padding: 2.5mm 3mm !important; /* Consistent padding */
-    border: 1px solid #ccc !important; /* Lighter border for less visual clutter */
-    text-align: left;
-    vertical-align: top; /* Align content to the top of cells */
-  }
+  
   .print-table th {
-    background-color: #e8eaf6 !important; /* Lighter, professional blue for header */
-    color: #283593 !important; /* Darker blue text for contrast */
+    background-color: #f8fafc !important;
+    color: #2c3e50 !important;
     font-weight: 600;
-    font-size: 9.5pt;
+    font-size: 10pt;
+    padding: 3mm 2mm !important;
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: none !important;
   }
+  
   .print-table td {
-    background-color: #fff !important; /* White background for cells */
-    color: #333 !important;
+    padding: 2.5mm 2mm !important;
+    border: none !important;
+    border-bottom: 1px solid #ecf0f1 !important;
+    color: #34495e !important;
+    vertical-align: top;
   }
+  
+  .print-table tr:last-child td {
+    border-bottom: none !important;
+  }
+  
   .print-table tr:nth-child(even) td {
-    background-color: #f7f9fc !important; /* Very subtle striping */
+    background-color: #fcfdfe !important;
   }
-  .print-table tr { /* Ensure rows are treated as table rows */
-    page-break-inside: avoid !important; /* Try to keep individual rows on one page */
-    break-inside: avoid !important;
+  
+  .status-badge {
+    display: inline-block;
+    padding: 1mm 3mm;
+    border-radius: 12px;
+    font-size: 9pt;
+    font-weight: 600;
   }
-
-  /* --- Links --- */
-  a {
-    color: #0d47a1 !important; /* Professional blue for links */
-    text-decoration: none !important; /* Remove underlines by default for cleaner print */
-  }
-  a[href^="http"]:after, a[href^="https"]:after { /* Show full URL for external links */
-    content: " (" attr(href) ")";
-    font-size: 0.8em;
-    color: #555;
-  }
-  a[href^="/"]:after, a[href^="#"]:after { /* Don't show for internal/anchor links */
-    content: "";
+  
+  .status-warning {
+    background-color: #fef5e7 !important;
+    color: #e67e22 !important;
   }
 
-
-  /* --- Resetting Screen Styles & Ensuring Print Clarity --- */
-  * { /* Universal reset for print */
-    box-shadow: none !important;
-    text-shadow: none !important;
-    /* border-radius: 0 !important; */ /* Optional: keep some subtle rounding if desired */
-    /* transition: none !important; */ /* Transitions are irrelevant for print */
+  /* --- Visual Enhancements --- */
+  .print-section-title {
+    font-size: 18pt;
+    color: #2980b9;
+    text-align: center;
+    margin: 0 0 8mm 0;
+    padding-bottom: 5mm;
+    border-bottom: 1px solid #3498db;
+    font-weight: 600;
+    letter-spacing: -0.5px;
   }
-  img, svg { /* Ensure images/SVGs scale correctly and don't overflow */
-    max-width: 100% !important;
-    height: auto !important;
-    display: block; /* Avoid extra space below images */
-  }
-
-  /* --- Specific Overrides if Needed (use sparingly) --- */
-  /* Example: If a chart needs specific print styling */
-  /* .category-pie-chart-container-print {
-    width: 180mm;
-    height: 100mm;
-  } */
-
-  /* --- Utility for Single Page (if absolutely necessary) --- */
-  .single-page-print {
-    /* This is often hard to enforce perfectly across all content variations.
-       Focus on good page-break-inside: avoid for sections instead. */
-    /* height: 260mm; */ /* Usable height within A4 margins */
-    /* overflow: hidden; */
-  }
-
-  /* --- Footer for Print (if you have a .print-footer class) --- */
+  
   .print-footer {
     display: block !important;
-    position: fixed; /* Try to fix at bottom, might be tricky with multi-page */
-    bottom: 5mm;
-    left: 12mm;
-    right: 12mm;
+    margin-top: 10mm;
+    padding-top: 3mm;
+    border-top: 1px solid #ecf0f1;
+    font-size: 9pt;
+    color: #95a5a6;
     text-align: center;
-    font-size: 8pt;
-    color: #666;
-    border-top: 1px solid #eee;
-    padding-top: 2mm;
   }
-  /* For multi-page footers, it's better to rely on @page :bottom content if browser support is good,
-     or use JavaScript libraries designed for print pagination. */
 
+  /* --- Utility Classes --- */
+  .page-break {
+    page-break-before: always;
+    margin-top: 10mm;
+  }
+  
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+  
+  .full-width {
+    width: 100%;
+  }
 }

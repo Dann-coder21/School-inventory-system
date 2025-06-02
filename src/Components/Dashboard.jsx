@@ -25,7 +25,7 @@ import {
   MdOutlineBarChart,
   MdAddCircleOutline,
   MdPieChartOutline,
-  MdAccountCircle, MdHelpOutline
+  MdAccountCircle, MdHelpOutline, MdPeople
 } from "react-icons/md";
 
 import CategoryPieChart from './CategoryPieChart'; // Adjust path if needed
@@ -257,7 +257,9 @@ const Dashboard = () => {
           <NavLink to="/AddItemsForm" className={sidebarLinkClass}><MdAddBox className={sidebarIconClass} /> Add Items</NavLink>
           <NavLink to="/viewitems" className={sidebarLinkClass}><MdList className={sidebarIconClass} /> View Items</NavLink>
           <NavLink to="/reports" className={sidebarLinkClass}><MdAssessment className={sidebarIconClass} /> Reports</NavLink>
+          <NavLink to="/admin/users" className={sidebarLinkClass}><MdPeople className={sidebarIconClass} /> User Management  </NavLink> {/* Assuming MdPeople is imported */}
           <NavLink to="/settings" className={sidebarLinkClass}><MdSettings className={sidebarIconClass} /> Settings</NavLink>
+     
         </nav>
       </aside>
 
