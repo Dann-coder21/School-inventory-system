@@ -1,16 +1,21 @@
+// --- IMPORTS ---
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Swal from 'sweetalert2';
-import bgImage from "../assets/school inventory image.png";
+import bgImage from "../assets/school inventory image.png"; // Ensure this path is correct
 import { Eye, EyeOff, LogIn, Mail, Lock } from "lucide-react";
+import 'sweetalert2/dist/sweetalert2.min.css'; // Import SweetAlert2 CSS for proper styling
 
+// --- COMPONENT DEFINITION ---
 const Login = ({ setIsLoggedIn }) => {
+  // --- STATE HOOKS ---
   const [values, setValues] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
+  // --- EVENT HANDLERS ---
   const handleChanges = (e) => {
     setValues({ ...values, [e.target.name]: e.target.value });
   };
@@ -21,62 +26,122 @@ const Login = ({ setIsLoggedIn }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log("--- Frontend: handleSubmit initiated ---");
+
+    // Basic client-side validation
     if (!values.email || !values.password) {
         Swal.fire({
             title: 'Missing Fields',
             text: 'Please enter both email and password.',
             icon: 'warning',
-            confirmButtonColor: '#f59e0b',
+            confirmButtonColor: '#f59e0b', // Amber color for warning
+            customClass: { // Ensure visibility
+                popup: 'z-50' // Or a higher z-index if needed
+            }
         });
         return;
     }
+
     setIsLoading(true);
     try {
+      console.log("Frontend: Attempting axios.post to /auth/login with values:", values);
       const response = await axios.post("http://localhost:3000/auth/login", values);
-      if (response.status === 201) {
+      console.log("Frontend: axios.post successful. Response object:", response);
+
+      // Check for successful login status (typically 200 OK)
+      if (response.status === 200 && response.data && response.data.token) {
+        console.log("Frontend: Login success block entered. Token:", response.data.token);
         localStorage.setItem("token", response.data.token);
-        localStorage.setItem("isLoggedIn", "true");
-        if(setIsLoggedIn) setIsLoggedIn(true);
+        localStorage.setItem("isLoggedIn", "true"); // Consider managing this via AuthContext primarily
+        if (setIsLoggedIn) {
+            setIsLoggedIn(true); // Update parent state if prop is passed
+        }
+
+        // Optional: If using a global AuthContext, you might refresh its state here
+        // const auth = useAuth(); // Assuming useAuth() is accessible
+        // if (auth && auth.refreshUserData) {
+        //   await auth.refreshUserData(); // Ensure this is async if it involves API calls
+        // }
 
         await Swal.fire({
-          title: 'Welcome Back!',
-          text: 'You have successfully logged in.',
+          title: 'Login Successful!',
+          text: 'Welcome back! Redirecting you to the dashboard...',
           icon: 'success',
-          confirmButtonColor: '#4f46e5',
-          confirmButtonText: 'Continue to Dashboard',
-          timer: 2500,
+          timer: 2000, // Slightly longer for readability
           timerProgressBar: true,
+          showConfirmButton: false, // No need for confirm button if timer is redirecting
+          customClass: { popup: 'z-50' }, // Ensure visibility
+          willClose: () => { // Navigate after the alert closes
+            console.log("Frontend: Swal success closed. Navigating to /dashboard...");
+            navigate("/dashboard");
+          }
         });
-        navigate("/dashboard");
+      } else {
+        // Handle cases where status is 200 but token/data might be missing, or unexpected status
+        console.warn("Frontend: Login response status was 200 but data might be problematic, or status was unexpected. Status:", response.status, "Data:", response.data);
+        Swal.fire({
+            title: 'Login Issue',
+            text: `Received an unexpected response (Status: ${response.status}). Please try again or contact support.`,
+            icon: 'info',
+            customClass: { popup: 'z-50' }
+        });
       }
     } catch (err) {
-      console.error("Login error:", err.response ? err.response.data : err.message);
-      const status = err.response?.status;
-      let title = 'Login Failed';
-      let text = err.response?.data?.error || 'An unexpected error occurred. Please try again.';
-      let icon = 'error';
-      let confirmButtonColor = '#ef4444';
-
-      if (status === 401) {
-        title = 'Authentication Failed';
-        text = 'The email or password you entered is incorrect. Please check your credentials.';
-        icon = 'warning';
-        confirmButtonColor = '#f59e0b';
-      } else if (status === 404 && err.response?.data?.error?.toLowerCase().includes('user not found')) {
-        title = 'User Not Found';
-        text = 'No account found with that email address.';
-        icon = 'warning';
-        confirmButtonColor = '#f59e0b';
+      console.error("--- Frontend: Login CATCH block ---");
+      // Enhanced error logging
+      if (err.response) {
+        console.error("Login error - Server Response Data:", err.response.data);
+        console.error("Login error - Server Response Status:", err.response.status);
+      } else if (err.request) {
+        console.error("Login error - No response received. Request made:", err.request);
+      } else {
+        console.error('Login error - Error setting up request:', err.message);
       }
-      Swal.fire({ title, text, icon, confirmButtonColor });
+      console.error("Login error - Full error object:", err);
+
+      // Determine error message for Swal
+      const status = err.response?.status;
+      let errorTitle = 'Login Failed';
+      let errorText = 'An unknown error occurred. Please try again later.';
+      let errorIcon = 'error';
+      let errorButtonColor = '#ef4444'; // Red for general error
+
+      if (err.message === "Network Error") {
+        errorTitle = 'Network Error';
+        errorText = 'Could not connect to the server. Please check your internet connection and try again.';
+      } else if (status === 401) {
+        errorTitle = 'Authentication Failed';
+        errorText = err.response.data?.message || 'Incorrect email or password. Please check your credentials.';
+        errorIcon = 'warning';
+        errorButtonColor = '#f59e0b'; // Amber for auth warnings
+      } else if (status === 404) {
+        errorTitle = 'User Not Found';
+        errorText = err.response.data?.message || 'No account found with that email address.';
+        errorIcon = 'warning';
+        errorButtonColor = '#f59e0b';
+      } else if (err.response?.data?.message) {
+        // Use server's message if available for other errors
+        errorText = err.response.data.message;
+      }
+
+      Swal.fire({
+        title: errorTitle,
+        text: errorText,
+        icon: errorIcon,
+        confirmButtonColor: errorButtonColor,
+        customClass: { popup: 'z-50' }
+      });
     } finally {
+      console.log("--- Frontend: handleSubmit finally block ---");
       setIsLoading(false);
     }
   };
 
+  // --- DERIVED STATE FOR UI ---
   const isEmailEmpty = values.email.trim() === "";
   const isPasswordEmpty = values.password.trim() === "";
 
+  // --- JSX RETURN ---
   return (
     <div
       className="relative min-h-screen flex items-center justify-center bg-cover bg-center px-4 py-8 selection:bg-indigo-500 selection:text-white"
@@ -111,12 +176,13 @@ const Login = ({ setIsLoggedIn }) => {
                 className={`
                   ${isEmailEmpty ? 'pl-10' : 'pl-3'}
                   pr-3 py-2.5 block w-full rounded-lg border border-gray-300 shadow-sm 
-                  placeholder:text-center {/* Centers the placeholder text */}
+                  placeholder:text-gray-400 
                   focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 
                   transition-all duration-150 ease-in-out sm:text-sm 
                   disabled:opacity-70 disabled:bg-gray-100
                 `}
                 disabled={isLoading}
+                autoComplete="email"
               />
             </div>
           </div>
@@ -127,11 +193,16 @@ const Login = ({ setIsLoggedIn }) => {
                 Password
               </label>
               <a
-                href="/forgot-password"
+                href="#" // Changed to # to prevent navigation, handled by onClick
                 className="text-xs font-medium text-indigo-600 hover:text-indigo-500 hover:underline"
                 onClick={(e) => {
                     e.preventDefault();
-                    Swal.fire('Forgot Password?', 'Password recovery feature coming soon!', 'info');
+                    Swal.fire({
+                        title:'Forgot Password?', 
+                        text:'Password recovery feature is coming soon!', 
+                        icon:'info',
+                        customClass: { popup: 'z-50' }
+                    });
                 }}
               >
                 Forgot password?
@@ -153,12 +224,13 @@ const Login = ({ setIsLoggedIn }) => {
                 className={`
                   ${isPasswordEmpty ? 'pl-10' : 'pl-3'}
                   pr-10 py-2.5 block w-full rounded-lg border border-gray-300 shadow-sm 
-                  placeholder:text-center {/* Centers the placeholder text */}
+                  placeholder:text-gray-400
                   focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 
                   transition-all duration-150 ease-in-out sm:text-sm 
                   disabled:opacity-70 disabled:bg-gray-100
                 `}
                 disabled={isLoading}
+                autoComplete="current-password"
               />
               <button
                 type="button"
@@ -201,7 +273,7 @@ const Login = ({ setIsLoggedIn }) => {
           <div className="text-sm text-center text-gray-600 pt-2">
             Don’t have an account?{" "}
             <a
-              href="/signup"
+              href="/signup" // This should ideally use <Link to="/signup"> from react-router-dom
               className="text-indigo-600 font-medium hover:text-indigo-500 hover:underline"
             >
               Sign up here

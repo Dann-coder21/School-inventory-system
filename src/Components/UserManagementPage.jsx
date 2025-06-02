@@ -1,3 +1,5 @@
+// UserManagementPage.js - No changes needed, keeping it as is.
+
 import React, { useState, useContext, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ThemeContext } from '../contexts/ThemeContext';
@@ -15,7 +17,7 @@ const AVAILABLE_ROLES = ['Admin', 'Staff', 'Viewer', 'DepartmentHead', 'StockMan
 
 const UserManagementPage = () => {
   const { darkMode } = useContext(ThemeContext);
-  const { currentUser, logout, isLoadingAuth } = useAuth();
+  const { currentUser, logout, isLoadingAuth } = useAuth(); // Correctly consuming auth state
 
   const [users, setUsers] = useState([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
@@ -29,7 +31,7 @@ const UserManagementPage = () => {
     email: '',
     password: '',
     role: 'Staff',
-    phone: '', // <<< CHANGED from phone_number to phone
+    phone: '',
     dob: ''
   });
 
@@ -42,17 +44,11 @@ const UserManagementPage = () => {
         setIsLoadingUsers(false);
         return;
       }
-      // Assuming your backend GET /api/admin/users sends back user objects
-      // where the phone field is named 'phone' (or 'phoneNumber' as per your previous backend code)
-      // The frontend will display whatever is in response.data.
-      // For consistency with the "Add User" form and DB column name,
-      // ensure backend sends 'phone'.
       const response = await axios.get("http://localhost:3000/api/admin/users", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      // Ensure the data received matches what the table expects, e.g., user.phone
       setUsers(response.data);
     } catch (error) {
       console.error("Failed to fetch users:", error);
@@ -62,8 +58,11 @@ const UserManagementPage = () => {
         text: errorMsg,
         icon: 'error',
       });
+      // The previous comment // logout(); is commented out, which is good.
+      // Let AuthContext handle full logout lifecycle.
       if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-        // logout();
+        // No need to call logout() here, AuthContext's fetchAndSetCurrentUser or login will handle it
+        // if token is invalid or expired.
       }
     } finally {
       setIsLoadingUsers(false);
@@ -71,12 +70,16 @@ const UserManagementPage = () => {
   }, []);
 
   useEffect(() => {
+    console.log("UserManagementPage useEffect: isLoadingAuth:", isLoadingAuth, "currentUser:", currentUser?.role);
     if (!isLoadingAuth && currentUser && currentUser.role === 'Admin') {
       fetchUsers();
     } else if (!isLoadingAuth && (!currentUser || currentUser.role !== 'Admin')) {
-      setIsLoadingUsers(false);
+      // This path is hit correctly when auth is *done loading* but user is not admin.
+      setIsLoadingUsers(false); // Make sure user loading state is also finished if no access
     }
+    // No change needed here.
   }, [currentUser, isLoadingAuth, fetchUsers]);
+
 
   const handleNewUserChange = (e) => {
     const { name, value } = e.target;
@@ -92,17 +95,13 @@ const UserManagementPage = () => {
         return;
       }
 
-      // Ensure newUser contains 'phone' if that's what backend expects
-      // The `newUser` state already uses 'phone' now.
-      // Your backend `POST /api/admin/adduser` or `POST /api/admin/users` needs to expect `phone`.
-      const response = await axios.post('http://localhost:3000/api/admin/adduser', newUser, { // Or /api/admin/adduser
+      const response = await axios.post('http://localhost:3000/api/admin/adduser', newUser, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
       Swal.fire('Success!', 'User added successfully!', 'success');
       setShowAddForm(false);
-      // Reset state - Corrected to use 'phone'
-      setNewUser({ fullname: '', email: '', password: '', role: 'Staff', phone: '', dob: '' }); // <<< CHANGED
+      setNewUser({ fullname: '', email: '', password: '', role: 'Staff', phone: '', dob: '' });
       fetchUsers();
     } catch (error) {
       Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to add user.', 'error');
@@ -119,12 +118,11 @@ const UserManagementPage = () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('Authentication token not found.');
 
-      // The body for updating role is just { role: selectedRole }, so no 'phone' field issue here.
-      await axios.put(`http://localhost:3000/api/admin/users/${userId}`, 
-        { role: selectedRole }, 
+      await axios.put(`http://localhost:3000/api/admin/users/${userId}`,
+        { role: selectedRole },
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
-      
+
       await fetchUsers();
       setEditingUserId(null);
       Swal.fire('Success', 'User role updated successfully!', 'success');
@@ -147,7 +145,7 @@ const UserManagementPage = () => {
       cancelButtonColor: '#3085d6',
       confirmButtonText: 'Yes, delete it!'
     });
-    
+
     if (result.isConfirmed) {
       try {
         const token = localStorage.getItem('token');
@@ -164,19 +162,19 @@ const UserManagementPage = () => {
     }
   };
 
-  const sidebarLinkClass = ({ isActive }) => 
+  const sidebarLinkClass = ({ isActive }) =>
     `px-5 py-3.5 hover:bg-white/20 transition-colors flex items-center gap-3.5 text-sm font-medium rounded-lg mx-3 my-1.5 ${
       isActive
         ? (darkMode ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/30 text-white shadow-md')
         : (darkMode ? 'text-slate-300 hover:text-white hover:bg-slate-700/50' : 'text-indigo-100 hover:text-white')
     }`;
-  
+
   const inputBaseClass = `w-full px-3 py-2 rounded-md border text-sm transition-colors duration-150 focus:ring-2 focus-visible:outline-none ${
     darkMode
       ? 'bg-slate-700 border-slate-600 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-400 text-slate-100'
       : 'bg-white border-slate-300 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-400 text-slate-800'
   }`;
-  
+
   const buttonBaseClass = "px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors flex items-center gap-1.5";
 
   if (isLoadingAuth) {
@@ -244,7 +242,7 @@ const UserManagementPage = () => {
             <div className={`mb-6 p-6 rounded-lg shadow-lg ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'}`}>
               <div className="flex justify-between items-center mb-4">
                 <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Add New User</h3>
-                <button 
+                <button
                   onClick={() => setShowAddForm(false)}
                   className={`p-1 rounded-full hover:opacity-70 ${darkMode ? 'text-slate-300' : 'text-gray-500'}`}
                   aria-label="Close add user form"
@@ -252,7 +250,7 @@ const UserManagementPage = () => {
                   <MdClose className="text-xl" />
                 </button>
               </div>
-              
+
               <form onSubmit={handleAddUserSubmit}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   {/* Full Name, Email, Password, Role inputs remain the same */}
@@ -301,10 +299,10 @@ const UserManagementPage = () => {
                       Phone Number
                     </label>
                     <input
-                      id="phone" // <<< CHANGED htmlFor and id to 'phone'
+                      id="phone"
                       type="tel"
-                      name="phone" // <<< CHANGED name attribute to 'phone'
-                      value={newUser.phone} // <<< CHANGED to newUser.phone
+                      name="phone"
+                      value={newUser.phone}
                       onChange={handleNewUserChange}
                       className={inputBaseClass}
                     />
@@ -389,7 +387,7 @@ const UserManagementPage = () => {
                         )}
                       </td>
                       <td className={`py-3 px-4 hidden md:table-cell ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {user.phone || 'N/A'} {/* <<< CHANGED to user.phone if backend sends 'phone' */}
+                        {user.phone || 'N/A'}
                       </td>
                       <td className={`py-3 px-4 hidden lg:table-cell ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                         {user.dob ? new Date(user.dob).toLocaleDateString() : 'N/A'}
