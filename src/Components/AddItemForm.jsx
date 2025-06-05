@@ -1,8 +1,9 @@
-import React, { useContext, useState, useEffect, useRef } from "react"; // Added useRef
+import React, { useContext, useState, useEffect, useMemo, useRef } from "react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { InventoryContext } from "../contexts/InventoryContext";
 import { ThemeContext } from "../contexts/ThemeContext";
-import { NavLink, useNavigate } from "react-router-dom";
-import Swal from 'sweetalert2';
+import { useAuth } from "../contexts/AuthContext";
+import Swal from "sweetalert2";
 import 'sweetalert2/dist/sweetalert2.min.css';
 
 // Importing icons
@@ -16,18 +17,22 @@ import {
   MdSchool,
   MdOutlineNoteAdd,
   MdSave,
-  MdHourglassEmpty, // For loading spinner
-  MdClear, // For Clear Form button
+  MdHourglassEmpty,
+  MdClear,
   MdRefresh,
-  MdPeople // For Reset Form (alternative)
+  MdPeople,
+  MdShoppingCart // ADDED: Icon for Staff Orders link
 } from "react-icons/md";
+import LoadingSpinner from "../Components/LoadingSpinner";
+import Layout from "../Components/Layout/Layout";
 
-// Simple Spinner Icon Component
+
+// Simple Spinner Icon Component (unchanged)
 const SpinnerIcon = () => (
   <MdHourglassEmpty className="animate-spin text-lg" />
 );
 
-// Mock dynamic options (in a real app, these might come from context or API)
+// Mock dynamic options (unchanged)
 const DYNAMIC_CATEGORIES = [
   { value: "Books", label: "Books" },
   { value: "Electronics", label: "Electronics (General)" },
@@ -39,15 +44,13 @@ const DYNAMIC_CATEGORIES = [
   { value: "Consumables", label: "Consumables" },
   { value: "Other", label: "Other" },
 ];
-// Add more constants if needed, e.g., for locations if they become dynamic
-// const DYNAMIC_LOCATIONS = ["Library", "Lab A", "Storeroom 1", "Office 101"];
 
 
 const AddItemForm = () => {
   const { items, addItem, /* fetchCategories, fetchLocations - if they come from context */ } = useContext(InventoryContext);
   const { darkMode } = useContext(ThemeContext);
   const navigate = useNavigate();
-  const itemNameRef = useRef(null); // For focusing on the first field
+  const itemNameRef = useRef(null);
 
   const initialFormData = {
     itemName: "",
@@ -60,11 +63,13 @@ const AddItemForm = () => {
     dateAdded: new Date().toISOString().split('T')[0],
   };
 
+  const { currentUser } = useAuth(); // Access currentUser
+
   const [formData, setFormData] = useState(initialFormData);
-  const [errors, setErrors] = useState({}); // For inline validation errors
+  const [errors, setErrors] = useState({});
   const [existingItemNames, setExistingItemNames] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [addAnother, setAddAnother] = useState(false); // For "Add Another Item" checkbox
+  const [addAnother, setAddAnother] = useState(false);
 
   // Focus on the first input field on mount
   useEffect(() => {
@@ -76,7 +81,7 @@ const AddItemForm = () => {
     setExistingItemNames([...new Set(items.map((item) => item.item_name))]);
   }, [items]);
 
-  // --- Client-Side Validation Logic ---
+  // --- Client-Side Validation Logic (unchanged) ---
   const validateField = (name, value) => {
     let errorMsg = "";
     switch (name) {
@@ -94,6 +99,9 @@ const AddItemForm = () => {
       case "costPrice":
         if (value !== "" && (isNaN(Number(value)) || Number(value) < 0)) errorMsg = "Cost price must be a non-negative number.";
         break;
+      case "location": // Ensure location is validated if required
+        if (!value.trim()) errorMsg = "Location is required.";
+        break;
       default:
         break;
     }
@@ -103,14 +111,13 @@ const AddItemForm = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // Validate on change and clear error for that field
     if (errors[name]) {
       const fieldError = validateField(name, value);
       setErrors(prevErrors => ({ ...prevErrors, [name]: fieldError }));
     }
   };
 
-  const handleBlur = (e) => { // Validate on blur
+  const handleBlur = (e) => {
     const { name, value } = e.target;
     const fieldError = validateField(name, value);
     setErrors(prevErrors => ({ ...prevErrors, [name]: fieldError }));
@@ -135,18 +142,20 @@ const AddItemForm = () => {
   const validateForm = () => {
     const newErrors = {};
     let isValid = true;
-    Object.keys(formData).forEach(key => {
+    Object.keys(initialFormData).forEach(key => {
       const error = validateField(key, formData[key]);
       if (error) {
         newErrors[key] = error;
         isValid = false;
       }
     });
-    // Specific check for quantity as it's parsed later
     if (formData.quantity === "" || formData.quantity === null || isNaN(Number(formData.quantity)) || Number(formData.quantity) < 0) {
       newErrors.quantity = "Quantity must be a non-negative number and is required.";
       isValid = false;
     }
+    // Check location if it's required (e.g. if it's always mandatory)
+    // if (!formData.location.trim()) { newErrors.location = "Location is required."; isValid = false; }
+
 
     setErrors(newErrors);
     return isValid;
@@ -155,12 +164,12 @@ const AddItemForm = () => {
   const resetForm = (fullReset = true) => {
     if (fullReset || !addAnother) {
         setFormData(initialFormData);
-    } else { // Reset only key fields if "Add Another" is checked
+    } else {
         setFormData(prev => ({
-            ...initialFormData, // Reset most fields
-            category: prev.category, // Keep category
-            location: prev.location, // Keep location
-            dateAdded: prev.dateAdded, // Keep date
+            ...initialFormData,
+            category: prev.category,
+            location: prev.location,
+            dateAdded: prev.dateAdded,
         }));
     }
     setErrors({});
@@ -182,12 +191,19 @@ const AddItemForm = () => {
     setIsSubmitting(true);
 
     const itemDataToSend = {
-      ...formData,
+      itemName: formData.itemName.trim(),
+      sku: formData.sku.trim(),
+      category: formData.category,
+      description: formData.description.trim(),
       quantity: parseInt(formData.quantity, 10),
-      costPrice: formData.costPrice !== "" ? parseFloat(formData.costPrice) : null, // Handle optional costPrice
+      costPrice: formData.costPrice !== "" ? parseFloat(formData.costPrice) : null,
+      location: formData.location.trim(),
+      dateAdded: formData.dateAdded,
     };
 
     try {
+      // Assuming addItem handles the API call and updates context
+      // You should update your addItem in InventoryContext to handle new fields.
       await addItem(itemDataToSend);
 
       Swal.fire({
@@ -199,7 +215,7 @@ const AddItemForm = () => {
         showConfirmButton: false,
       }).then(() => {
         if (addAnother) {
-          resetForm(false); // Partial reset for "Add Another"
+          resetForm(false);
         } else {
           navigate("/inventory");
         }
@@ -230,9 +246,9 @@ const AddItemForm = () => {
     }`;
   const sidebarIconClass = "text-xl";
 
-  const formGroupClass = "flex flex-col gap-1"; // Reduced gap slightly for error messages
+  const formGroupClass = "flex flex-col gap-1";
   const labelClass = `block text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-slate-700'}`;
-  const inputBaseClass = (hasError = false) => // Function to add error class
+  const inputBaseClass = (hasError = false) =>
     `w-full px-3.5 py-2.5 rounded-md border text-sm transition-colors duration-150 focus:ring-2 focus-visible:outline-none
     ${darkMode
       ? `bg-slate-700 placeholder-slate-400 text-slate-100 ${hasError ? 'border-red-500 focus:border-red-500 focus:ring-red-500/50' : 'border-slate-600 focus:ring-indigo-500 focus:border-indigo-500'}`
@@ -240,10 +256,19 @@ const AddItemForm = () => {
     }`;
   const errorTextClass = "text-xs text-red-500 dark:text-red-400 mt-1";
 
+  // NEW: Staff Orders link visibility
+  const canViewOrders = ['Admin', 'Staff', 'DepartmentHead', 'StockManager'];
+  const showOrdersLink = useMemo(() => {
+    return canViewOrders.includes(currentUser?.role);
+  }, [currentUser?.role]);
 
   return (
+    <Layout>
     <div className={`flex h-screen font-sans antialiased ${darkMode ? 'dark' : ''}`}>
+     
+      
       {/* Sidebar */}
+      {/*
       <aside className={`fixed top-0 left-0 w-[250px] h-full flex flex-col z-50 transition-colors duration-300 shadow-xl print:hidden
                        ${darkMode ? 'bg-slate-800 border-r border-slate-700' : 'bg-gradient-to-b from-indigo-600 to-indigo-700 border-r border-indigo-700'}`}>
         <div className="flex items-center justify-center h-20 border-b border-white/20">
@@ -256,15 +281,21 @@ const AddItemForm = () => {
                   <NavLink to="/AddItemsForm" className={sidebarLinkClass}><MdAddBox className={sidebarIconClass} /> Add Items</NavLink>
                   <NavLink to="/viewitems" className={sidebarLinkClass}><MdList className={sidebarIconClass} /> View Items</NavLink>
                   <NavLink to="/reports" className={sidebarLinkClass}><MdAssessment className={sidebarIconClass} /> Reports</NavLink>
-                  <NavLink to="/admin/users" className={sidebarLinkClass}><MdPeople className={sidebarIconClass} /> User Management  </NavLink> {/* Assuming MdPeople is imported */}
+                  {currentUser?.role === 'Admin' && (
+                    <NavLink to="/admin/users" className={sidebarLinkClass}><MdPeople className={sidebarIconClass} /> User Management</NavLink>
+                  )}
+                  {showOrdersLink && ( // Conditionally render Staff Orders link
+                    <NavLink to="/orders" className={sidebarLinkClass}><MdShoppingCart className={sidebarIconClass} /> Staff Orders</NavLink>
+                  )}
                   <NavLink to="/settings" className={sidebarLinkClass}><MdSettings className={sidebarIconClass} /> Settings</NavLink>
-             
+
                 </nav>
       </aside>
+      */}
 
-      {/* Main Content Area */}
+    {/* Main Content Area (unchanged) */}
       <div className={`flex-1 flex flex-col ml-[250px] min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-        {/* Header */}
+        {/* Header (unchanged) */}
         <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 transition-colors duration-300 print:hidden
                            ${darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'} shadow-sm`}>
           <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
@@ -272,7 +303,7 @@ const AddItemForm = () => {
           </h2>
         </header>
 
-        {/* Form Content */}
+        {/* Form Content (unchanged) */}
         <main className="flex-1 p-6 pt-[104px] overflow-y-auto flex items-center justify-center">
           <div className={`w-full max-w-3xl rounded-xl shadow-2xl p-6 sm:p-8
                          ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'}`}>
@@ -285,8 +316,8 @@ const AddItemForm = () => {
               </h2>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5"> {/* Reduced space-y */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4"> {/* Reduced gap-y */}
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                 {/* Item Name */}
                 <div className={formGroupClass}>
                   <label htmlFor="itemName" className={labelClass}>Item Name <span className="text-red-500">*</span></label>
@@ -319,7 +350,7 @@ const AddItemForm = () => {
                     name="sku"
                     value={formData.sku}
                     onChange={handleChange}
-                    onBlur={handleBlur} // Add validation if needed for SKU
+                    onBlur={handleBlur}
                     placeholder="e.g., SKU12345 or scan barcode"
                     className={inputBaseClass(!!errors.sku)}
                     disabled={isSubmitting}
@@ -395,16 +426,11 @@ const AddItemForm = () => {
                     name="location"
                     value={formData.location}
                     onChange={handleChange}
-                    onBlur={handleBlur} // Add validation if needed for location
+                    onBlur={handleBlur}
                     placeholder="e.g., Library Shelf A3, Lab 102"
                     className={inputBaseClass(!!errors.location)}
                     disabled={isSubmitting}
                   />
-                  {/* Optional: Datalist for locations
-                  <datalist id="locationSuggestions">
-                    {DYNAMIC_LOCATIONS.map((loc, index) => (<option key={index} value={loc} />))}
-                  </datalist>
-                  */}
                   {errors.location && <p className={errorTextClass}>{errors.location}</p>}
                 </div>
 
@@ -433,7 +459,7 @@ const AddItemForm = () => {
                     name="description"
                     value={formData.description}
                     onChange={handleChange}
-                    onBlur={handleBlur} // Add validation if needed
+                    onBlur={handleBlur}
                     rows="3"
                     placeholder="Enter any additional details about the item..."
                     className={inputBaseClass(!!errors.description)}
@@ -453,7 +479,7 @@ const AddItemForm = () => {
                   onChange={(e) => setAddAnother(e.target.checked)}
                   disabled={isSubmitting}
                   className={`w-4 h-4 rounded mr-2 transition-colors duration-150
-                              ${darkMode ? 'bg-slate-600 border-slate-500 text-indigo-500 focus:ring-indigo-600' 
+                              ${darkMode ? 'bg-slate-600 border-slate-500 text-indigo-500 focus:ring-indigo-600'
                                         : 'border-slate-300 text-indigo-600 focus:ring-indigo-500'}`}
                 />
                 <label htmlFor="addAnother" className={`${labelClass} cursor-pointer`}>
@@ -465,7 +491,7 @@ const AddItemForm = () => {
               <div className="pt-3 flex flex-col sm:flex-row justify-end items-center gap-3">
                 <button
                     type="button"
-                    onClick={() => resetForm(true)} // Full reset
+                    onClick={() => resetForm(true)}
                     className={`w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-colors
                                 ${darkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
                                           : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
@@ -501,6 +527,7 @@ const AddItemForm = () => {
         </main>
       </div>
     </div>
+    </Layout>
   );
 };
 

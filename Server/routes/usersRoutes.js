@@ -86,7 +86,7 @@ userRouter.get("/users", verifyToken, isAdmin, async (req, res) => {
 // Assuming your frontend POSTs to /api/admin/users (if userRouter is mounted at /api/admin)
 // or /api/admin/adduser if you kept that path.
 // Let's assume path is /users to be RESTful, matching the GET all.
-userRouter.post("/users", verifyToken, isAdmin, async (req, res) => {
+userRouter.post("/adduser", verifyToken, isAdmin, async (req, res) => {
   // Your existing debug logs are fine here if you still need them
   console.log("--- New Request to POST /users (create user) ---");
   console.log("Request Body (req.body):", req.body);

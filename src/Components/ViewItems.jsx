@@ -1,41 +1,31 @@
-import React, { useContext, useState, useMemo } from "react"; // Added useState, useMemo
-import { NavLink, Link, useNavigate } from "react-router-dom"; // Using NavLink
+import React, { useContext, useState, useMemo } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { InventoryContext } from "../contexts/InventoryContext";
 import { ThemeContext } from "../contexts/ThemeContext";
-import LoadingSpinner from "../Components/LoadingSpinner"; // Assuming you have this
+import LoadingSpinner from "../Components/LoadingSpinner";
+import Layout from "../Components/Layout/Layout"; // Import Layout component
 
-// Importing icons
 import {
-  MdDashboard,
-  MdInventory,
+  MdSearch, MdOutlineVisibility,
+  MdArrowUpward, MdArrowDownward, MdOutlineInventory2,
+  MdChevronLeft,
   MdAddBox,
-  MdList,
-  MdAssessment,
   MdSettings,
-  MdSchool, // For sidebar brand
-  MdSearch, // For search input (optional for view-only page)
-  MdOutlineVisibility, // Icon for View Items header
-  MdArrowUpward, // Sort icon
-  MdArrowDownward, // Sort icon
-  MdOutlineInventory2, // Empty state icon
-  MdChevronLeft, // Back button icon
-  MdPeople
+  
 } from "react-icons/md";
 
 const ViewItems = () => {
-  const { items, loading, error, fetchItems } = useContext(InventoryContext); // Added loading, error, fetchItems
+  const { items, loading, error, fetchItems } = useContext(InventoryContext);
   const { darkMode } = useContext(ThemeContext);
   const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [sortConfig, setSortConfig] = useState({ key: 'item_name', direction: 'ascending' });
 
-  // Fetch items if not already loaded (optional, depends on your app structure)
   React.useEffect(() => {
-    if (!items.length && !loading && !error) {
-      // fetchItems(); // Uncomment if this page should trigger a fetch
-    }
-  }, [items.length, loading, error, fetchItems]);
+    // Optional: Trigger fetchItems if this page is responsible for initial data load
+    // fetchItems();
+  }, [fetchItems]);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -57,9 +47,9 @@ const ViewItems = () => {
       sortableItems.sort((a, b) => {
         let valueA = a[sortConfig.key];
         let valueB = b[sortConfig.key];
-        
+
         if (sortConfig.key === 'date_added') {
-          valueA = new Date(valueA || 0); // Handle potential null date
+          valueA = new Date(valueA || 0);
           valueB = new Date(valueB || 0);
         } else if (sortConfig.key === 'status') {
             const getStatusValue = (qty) => qty === 0 ? 2 : qty < 5 ? 1 : 0;
@@ -74,7 +64,7 @@ const ViewItems = () => {
             if (valueA == null) return sortConfig.direction === 'ascending' ? 1 : -1;
             if (valueB == null) return sortConfig.direction === 'ascending' ? -1 : 1;
         }
-        
+
         if (valueA < valueB) return sortConfig.direction === 'ascending' ? -1 : 1;
         if (valueA > valueB) return sortConfig.direction === 'ascending' ? 1 : -1;
         return 0;
@@ -96,16 +86,6 @@ const ViewItems = () => {
     return sortConfig.direction === 'ascending' ? <MdArrowUpward className="ml-1.5 text-xs" /> : <MdArrowDownward className="ml-1.5 text-xs" />;
   };
 
-  // Sidebar link styling (identical to other pages)
-  const sidebarLinkClass = ({ isActive }) =>
-    `px-5 py-3.5 hover:bg-white/20 transition-colors flex items-center gap-3.5 text-sm font-medium rounded-lg mx-3 my-1.5 ${
-      isActive 
-        ? (darkMode ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/30 text-white shadow-md') 
-        : (darkMode ? 'text-slate-300 hover:text-white hover:bg-slate-700/50' : 'text-indigo-100 hover:text-white')
-    }`;
-  const sidebarIconClass = "text-xl";
-
-  // Table styles
   const tableContainerClass = `rounded-lg shadow-xl overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'}`;
   const tableHeaderClass = `py-3.5 px-4 text-left text-xs uppercase tracking-wider font-semibold cursor-pointer transition-colors`;
   const tableCellClass = `py-3 px-4 whitespace-nowrap text-sm ${darkMode ? 'text-slate-200' : 'text-slate-700'}`;
@@ -120,68 +100,56 @@ const ViewItems = () => {
     { key: 'date_added', label: 'Date Added' },
   ];
 
-
   return (
-    <div className={`flex h-screen font-sans antialiased ${darkMode ? 'dark' : ''}`}>
-      {/* Sidebar (Identical to other pages) */}
-      <aside className={`fixed top-0 left-0 w-[250px] h-full flex flex-col z-50 transition-colors duration-300 shadow-xl print:hidden
-                       ${darkMode ? 'bg-slate-800 border-r border-slate-700' : 'bg-gradient-to-b from-indigo-600 to-indigo-700 border-r border-indigo-700'}`}>
-        <div className="flex items-center justify-center h-20 border-b border-white/20">
-          <MdSchool className={`text-3xl ${darkMode ? 'text-indigo-400' : 'text-white'}`} />
-          <h1 className={`ml-3 text-2xl font-bold tracking-tight ${darkMode ? 'text-slate-100' : 'text-white'}`}>School IMS</h1>
-        </div>
-         <nav className="flex-grow pt-5">
-                  <NavLink to="/dashboard" className={sidebarLinkClass}><MdDashboard className={sidebarIconClass} /> Dashboard</NavLink>
-                  <NavLink to="/inventory" className={sidebarLinkClass}><MdInventory className={sidebarIconClass} /> Inventory</NavLink>
-                  <NavLink to="/AddItemsForm" className={sidebarLinkClass}><MdAddBox className={sidebarIconClass} /> Add Items</NavLink>
-                  <NavLink to="/viewitems" className={sidebarLinkClass}><MdList className={sidebarIconClass} /> View Items</NavLink>
-                  <NavLink to="/reports" className={sidebarLinkClass}><MdAssessment className={sidebarIconClass} /> Reports</NavLink>
-                  <NavLink to="/admin/users" className={sidebarLinkClass}><MdPeople className={sidebarIconClass} /> User Management  </NavLink> {/* Assuming MdPeople is imported */}
-                  <NavLink to="/settings" className={sidebarLinkClass}><MdSettings className={sidebarIconClass} /> Settings</NavLink>
-             
-                </nav>
-      </aside>
-
-      {/* Main Content Area */}
+    <Layout>
+      {/* Main Content Area - Layout now handles the ml-[250px] shift */}
       <div className={`flex-1 flex flex-col ml-[250px] min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-        {/* Header (Identical structure, title changed) */}
-        <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 transition-colors duration-300
-                           ${darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'} shadow-sm`}>
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-lg ${darkMode ? 'bg-sky-500/20 text-sky-400' : 'bg-sky-100 text-sky-600'}`}>
-              <MdOutlineVisibility size={24}/>
-            </div>
-            <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
-              All Inventory Items
-            </h2>
-          </div>
-          <div className="relative">
-           
-            <input
-              type="text"
-              placeholder="Search all items..."
-              className={`w-full md:w-72 py-2.5 pl-11 pr-4 rounded-lg text-sm transition-all duration-300 focus:ring-2 focus:shadow-md
-                          ${darkMode ? 'bg-slate-700 text-slate-200 placeholder-slate-400 focus:ring-sky-500 border border-slate-600 hover:border-slate-500' 
-                                    : 'bg-white text-slate-700 placeholder-slate-400 focus:ring-sky-500 border border-slate-300 hover:border-slate-400'}`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </header>
+        {/* Header: CORRECTED left positioning for fixed header */}
+        <header
+  className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 transition-colors duration-300
+    ${darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'} shadow-sm`}
+>
+  {/* Left: Title */}
+  <div className="flex items-center gap-3">
+    <div className={`p-2.5 rounded-lg ${darkMode ? 'bg-sky-500/20 text-sky-400' : 'bg-sky-100 text-sky-600'}`}>
+      <MdOutlineVisibility size={24} />
+    </div>
+    <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
+      All Inventory Items
+    </h2>
+  </div>
+
+  {/* Center: Absolutely centered search bar */}
+  <div className="absolute left-1/2 transform -translate-x-1/2">
+    <input
+      type="text"
+      placeholder="Search all items..."
+      className={`w-64 md:w-80 py-2.5 pl-11 pr-4 rounded-lg text-sm transition-all duration-300 focus:ring-2 focus:shadow-md
+        ${darkMode ? 'bg-slate-700 text-slate-200 placeholder-slate-400 focus:ring-sky-500 border border-slate-600 hover:border-slate-500'
+                  : 'bg-white text-slate-700 placeholder-slate-400 focus:ring-sky-500 border border-slate-300 hover:border-slate-400'}`}
+      value={searchTerm}
+      onChange={(e) => setSearchTerm(e.target.value)}
+    />
+    {/* Optional search icon */}
+    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+      🔍
+    </div>
+  </div>
+</header>
+
 
         {/* Page Content */}
-        <main className="flex-1 p-6 pt-[104px] overflow-y-auto"> {/* 80px header + 24px padding */}
+        <main className="flex-1 p-6 pt-[104px] overflow-y-auto">
           <div className="max-w-full mx-auto">
-            
             {loading ? (
               <div className="flex justify-center items-center min-h-[400px]"> <LoadingSpinner /> </div>
             ) : error ? (
               <div className={`text-center p-8 sm:p-10 rounded-lg shadow-md ${darkMode ? 'bg-slate-800 text-red-400' : 'bg-white text-red-600'}`}>
-                <MdSettings className="text-5xl mx-auto mb-4"/> {/* Error Icon */}
+                <MdSettings className="text-5xl mx-auto mb-4"/>
                 <h3 className="text-xl font-semibold mb-2">Error Loading Items</h3>
                 <p className="text-sm sm:text-base">{error.message || "Could not fetch item data."}</p>
-                 <button 
-                    onClick={() => fetchItems ? fetchItems() : window.location.reload()} // Add fetchItems if available
+                 <button
+                    onClick={() => fetchItems ? fetchItems() : window.location.reload()}
                     className={`mt-6 py-2.5 px-5 rounded-lg font-semibold text-sm transition-colors ${darkMode ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-indigo-500 hover:bg-indigo-600 text-white'}`}
                 > Retry </button>
               </div>
@@ -198,8 +166,8 @@ const ViewItems = () => {
                   <Link
                     to="/AddItemsForm"
                     className={`flex items-center gap-2 py-2.5 px-5 rounded-lg text-sm font-semibold transition-all duration-300 group
-                                ${darkMode 
-                                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white focus-visible:ring-2 focus-visible:ring-indigo-400' 
+                                ${darkMode
+                                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white focus-visible:ring-2 focus-visible:ring-indigo-400'
                                   : 'bg-indigo-500 hover:bg-indigo-600 text-white focus-visible:ring-2 focus-visible:ring-indigo-300'
                                 } hover:shadow-lg active:scale-95`}
                   > <MdAddBox className="text-lg" /> Add New Item </Link>
@@ -208,12 +176,12 @@ const ViewItems = () => {
             ) : (
               <div className={tableContainerClass}>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[800px]"> {/* Min width for horizontal scroll */}
+                  <table className="w-full min-w-[800px]">
                     <thead className={`${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
                       <tr>
                         {tableHeaders.map(header => (
-                            <th 
-                                key={header.key} 
+                            <th
+                                key={header.key}
                                 className={`${tableHeaderClass} ${header.isNumeric ? 'text-center' : 'text-left'} ${darkMode ? 'hover:bg-slate-600' : 'hover:bg-slate-200'}`}
                                 onClick={() => requestSort(header.key)}
                             >
@@ -253,8 +221,8 @@ const ViewItems = () => {
               <Link
                 to="/dashboard"
                 className={`inline-flex items-center gap-1.5 py-2.5 px-5 rounded-lg text-sm font-semibold transition-all duration-300 group
-                            ${darkMode 
-                              ? 'bg-slate-600 hover:bg-slate-500 text-slate-100 focus-visible:ring-2 focus-visible:ring-slate-400' 
+                            ${darkMode
+                              ? 'bg-slate-600 hover:bg-slate-500 text-slate-100 focus-visible:ring-2 focus-visible:ring-slate-400'
                               : 'bg-slate-200 hover:bg-slate-300 text-slate-700 focus-visible:ring-2 focus-visible:ring-slate-400'
                             } hover:shadow-md active:scale-95`}
               > <MdChevronLeft className="text-lg" /> Back to Dashboard </Link>
@@ -262,7 +230,7 @@ const ViewItems = () => {
           </div>
         </main>
       </div>
-    </div>
+    </Layout>
   );
 };
 

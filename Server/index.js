@@ -8,6 +8,7 @@ import cors from "cors";
 import authRouter from "./routes/authRoutes.js";
 import itemsRouter from "./routes/itemsRoutes.js";
 import userRouter from "./routes/usersRoutes.js"; 
+import orderRouter from "./routes/orderRoutes.js";
 // Import using a descriptive name that matches your intent
 // Note: I've named the import 'userRoleAdminRouter' for clarity.
 // The actual variable name here doesn't *have* to match 'RoleRouter' from the other file
@@ -41,7 +42,8 @@ app.use("/stock", addStockRouter);
 app.use("/delete", deleteItemRouter);
 
 // Mount the User Admin / Role Management routes under the "/admin" prefix
-app.use("/api/admin", userRouter); // Use the imported router here
+app.use("/api/admin", userRouter); 
+app.use("/api/orders", orderRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

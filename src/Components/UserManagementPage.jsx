@@ -1,40 +1,140 @@
-// UserManagementPage.js - No changes needed, keeping it as is.
-
-import React, { useState, useContext, useEffect, useCallback } from 'react';
+import React, { useState, useContext, useEffect, useCallback, useRef, useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ThemeContext } from '../contexts/ThemeContext';
-import { useAuth } from '../contexts/AuthContext'; // Assuming this path is correct
+import { useAuth } from '../contexts/AuthContext';
 import Swal from 'sweetalert2';
 import axios from "axios";
+import Layout from "../Components/Layout/Layout";
+import LoadingSpinner from "../Components/LoadingSpinner";
 
 // Icons
 import {
   MdDashboard, MdInventory, MdAddBox, MdList, MdAssessment, MdSettings, MdSchool,
-  MdPeople, MdEdit, MdDelete, MdSave, MdCancel, MdPersonAdd, MdClose
+  MdPeople, MdEdit, MdDelete, MdSave, MdCancel, MdPersonAdd, MdClose,
+  MdVisibility, MdVisibilityOff,
+  MdCheckCircle, MdError,
+  MdMoreVert, MdShoppingCart,
+  MdSort, MdSortByAlpha, MdArrowUpward, MdArrowDownward,
+  MdToggleOn, MdToggleOff,
+  MdLockReset,
+  MdApartment // NEW: Icon for Department
 } from 'react-icons/md';
+
+const API_BASE_URL = "http://localhost:3000";
 
 const AVAILABLE_ROLES = ['Admin', 'Staff', 'Viewer', 'DepartmentHead', 'StockManager'];
 
+// --- Validation Helper Functions (kept as is) ---
+const validateEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!email) return { isValid: false, message: 'Email is required.' };
+  if (!emailRegex.test(email)) return { isValid: false, message: 'Invalid email format.' };
+  return { isValid: true, message: '' };
+};
+
+const validatePhone = (phone) => {
+  const phoneRegex = /^\+?[0-9\s-()]{7,20}$/;
+  if (!phone) return { isValid: true, message: '' };
+  if (!phoneRegex.test(phone)) return { isValid: false, message: 'Invalid phone number format.' };
+  return { isValid: true, message: '' };
+};
+
+const getPasswordStrength = (password) => {
+  let strength = 0;
+  const messages = [];
+
+  if (password.length < 8) {
+    messages.push('At least 8 characters long.');
+  } else { strength += 1; }
+  if (password.match(/[a-z]/)) { strength += 1; } else { messages.push('At least one lowercase letter.'); }
+  if (password.match(/[A-Z]/)) { strength += 1; } else { messages.push('At least one uppercase letter.'); }
+  if (password.match(/[0-9]/)) { strength += 1; } else { messages.push('At least one number.'); }
+  if (password.match(/[^a-zA-Z0-9]/)) { strength += 1; } else { messages.push('At least one special character.'); }
+
+  if (password.length === 0) return { strength: 0, message: 'Type a password', color: 'gray' };
+  if (strength <= 2) return { strength, message: `Weak: ${messages.join(' ')}.`, color: 'red' };
+  if (strength === 3) return { strength, message: 'Medium strength.', color: 'orange' };
+  if (strength >= 4) return { strength, message: 'Strong password!', color: 'green' };
+
+  return { strength: 0, message: '', color: 'gray' };
+};
+
+
 const UserManagementPage = () => {
   const { darkMode } = useContext(ThemeContext);
-  const { currentUser, logout, isLoadingAuth } = useAuth(); // Correctly consuming auth state
+  const { currentUser, isLoadingAuth } = useAuth();
 
-  const [users, setUsers] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
-  const [editingUserId, setEditingUserId] = useState(null);
-  const [selectedRole, setSelectedRole] = useState('');
+
+  // NEW: State for departments
+  const [departments, setDepartments] = useState([]);
+  const [isLoadingDepartments, setIsLoadingDepartments] = useState(true);
+
+  const [editingUser, setEditingUser] = useState(null);
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [editPasswordStrength, setEditPasswordStrength] = useState({ strength: 0, message: '', color: 'gray' });
+  const [editValidationErrors, setEditValidationErrors] = useState({});
+
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // Add User Form State - Corrected to use 'phone'
+  // Updated state for "Add New User" form to include department_id
   const [newUser, setNewUser] = useState({
     fullname: '',
     email: '',
     password: '',
     role: 'Staff',
     phone: '',
-    dob: ''
+    dob: '',
+    department_id: '' // NEW: Department ID for new user
   });
+  const [showAddPassword, setShowAddPassword] = useState(false);
+  const [addPasswordStrength, setAddPasswordStrength] = useState({ strength: 0, message: '', color: 'gray' });
+  const [addValidationErrors, setAddValidationErrors] = useState({});
 
+
+  const [activeActionMenuId, setActiveActionMenuId] = useState(null);
+  const actionMenuRef = useRef(null);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('fullname');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [usersPerPage, setUsersPerPage] = useState(10);
+
+  // --- Fetch Departments ---
+  const fetchDepartments = useCallback(async () => {
+    setIsLoadingDepartments(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        Swal.fire('Authentication Error', 'No token found. Please log in again.', 'error');
+        setIsLoadingDepartments(false);
+        return;
+      }
+      const response = await axios.get(`${API_BASE_URL}/api/departments`, { // Adjust endpoint as needed
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setDepartments(response.data);
+      // If there's only one department, pre-select it for new user
+      if (response.data.length > 0 && newUser.department_id === '') {
+          setNewUser(prev => ({ ...prev, department_id: response.data[0].id }));
+      }
+    } catch (error) {
+      console.error("Failed to fetch departments:", error);
+      Swal.fire({
+        title: 'Error Fetching Departments',
+        text: error.response?.data?.message || error.message || "Could not load departments.",
+        icon: 'error',
+      });
+    } finally {
+      setIsLoadingDepartments(false);
+    }
+  }, [newUser.department_id]); // Added newUser.department_id to dependencies to avoid loop in initial set
+
+  // --- Fetch Users ---
   const fetchUsers = useCallback(async () => {
     setIsLoadingUsers(true);
     try {
@@ -44,12 +144,12 @@ const UserManagementPage = () => {
         setIsLoadingUsers(false);
         return;
       }
-      const response = await axios.get("http://localhost:3000/api/admin/users", {
+      const response = await axios.get(`${API_BASE_URL}/api/admin/users`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      setUsers(response.data);
+      setAllUsers(response.data);
     } catch (error) {
       console.error("Failed to fetch users:", error);
       const errorMsg = error.response?.data?.message || error.message || "Could not load user data.";
@@ -58,84 +158,277 @@ const UserManagementPage = () => {
         text: errorMsg,
         icon: 'error',
       });
-      // The previous comment // logout(); is commented out, which is good.
-      // Let AuthContext handle full logout lifecycle.
-      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-        // No need to call logout() here, AuthContext's fetchAndSetCurrentUser or login will handle it
-        // if token is invalid or expired.
-      }
     } finally {
       setIsLoadingUsers(false);
     }
   }, []);
 
   useEffect(() => {
-    console.log("UserManagementPage useEffect: isLoadingAuth:", isLoadingAuth, "currentUser:", currentUser?.role);
     if (!isLoadingAuth && currentUser && currentUser.role === 'Admin') {
+      fetchDepartments(); // Fetch departments when admin is authenticated
       fetchUsers();
     } else if (!isLoadingAuth && (!currentUser || currentUser.role !== 'Admin')) {
-      // This path is hit correctly when auth is *done loading* but user is not admin.
-      setIsLoadingUsers(false); // Make sure user loading state is also finished if no access
+      setIsLoadingUsers(false);
+      setIsLoadingDepartments(false);
     }
-    // No change needed here.
-  }, [currentUser, isLoadingAuth, fetchUsers]);
+  }, [currentUser, isLoadingAuth, fetchUsers, fetchDepartments]);
+
+  // Click outside handler for action menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target)) {
+        const isMenuButton = event.target.closest(`button[aria-label="Actions-for-${activeActionMenuId}"]`);
+        if (!isMenuButton) {
+          setActiveActionMenuId(null);
+        }
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [activeActionMenuId]);
 
 
+  // --- Filter, Sort, Paginate Logic ---
+  const filteredUsers = useMemo(() => {
+    let tempUsers = [...allUsers];
+
+    if (searchTerm) {
+      tempUsers = tempUsers.filter(user =>
+        user.fullname.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.department_name && user.department_name.toLowerCase().includes(searchTerm.toLowerCase())) // NEW: Search by department
+      );
+    }
+
+    tempUsers.sort((a, b) => {
+      const aValue = String(a[sortBy] || '').toLowerCase(); // Use || '' to handle undefined/null
+      const bValue = String(b[sortBy] || '').toLowerCase();
+
+      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return tempUsers;
+  }, [allUsers, searchTerm, sortBy, sortOrder]);
+
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+
+  const handlePageChange = (pageNumber) => {
+    if (pageNumber < 1 || pageNumber > totalPages) return;
+    setCurrentPage(pageNumber);
+    setActiveActionMenuId(null);
+  };
+
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
+
+  // --- HANDLERS FOR "ADD NEW USER" FORM ---
   const handleNewUserChange = (e) => {
     const { name, value } = e.target;
     setNewUser(prev => ({ ...prev, [name]: value }));
+
+    let currentErrors = { ...addValidationErrors };
+    if (name === 'email') {
+      const { isValid, message } = validateEmail(value);
+      currentErrors.email = isValid ? '' : message;
+    } else if (name === 'phone') {
+      const { isValid, message } = validatePhone(value);
+      currentErrors.phone = isValid ? '' : message;
+    } else if (name === 'password') {
+      const strengthResult = getPasswordStrength(value);
+      setAddPasswordStrength(strengthResult);
+      currentErrors.password = strengthResult.strength < 4 && value.length > 0 ? strengthResult.message : '';
+    } else if (name === 'fullname' && !value.trim()) {
+        currentErrors.fullname = "Full name is required.";
+    } else if (name === 'fullname') {
+        currentErrors.fullname = "";
+    }
+    // No specific validation needed for department_id beyond selection
+    setAddValidationErrors(currentErrors);
   };
 
   const handleAddUserSubmit = async (e) => {
     e.preventDefault();
+
+    let errors = {};
+    if (!newUser.fullname.trim()) { errors.fullname = "Full name is required."; }
+    const emailValidation = validateEmail(newUser.email);
+    if (!emailValidation.isValid) errors.email = emailValidation.message;
+    const passwordValidation = getPasswordStrength(newUser.password);
+    if (passwordValidation.strength < 4) { errors.password = passwordValidation.message || 'Password is not strong enough.'; }
+    if (newUser.phone) {
+      const phoneValidation = validatePhone(newUser.phone);
+      if (!phoneValidation.isValid) errors.phone = phoneValidation.message;
+    }
+    if (!newUser.department_id) { // NEW: Validate department selection
+        errors.department_id = "Department is required.";
+    }
+
+    setAddValidationErrors(errors);
+    if (Object.values(errors).some(msg => msg !== '')) {
+      Swal.fire('Validation Error', 'Please correct the errors in the form before submitting.', 'error');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        Swal.fire('Error', 'Authentication token not found. Please log in.', 'error');
-        return;
-      }
+      if (!token) { Swal.fire('Error', 'Authentication token not found. Please log in.', 'error'); return; }
 
-      const response = await axios.post('http://localhost:3000/api/admin/adduser', newUser, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const userPayload = { ...newUser };
+      // Ensure DOB is sent as a string (YYYY-MM-DD) or null
+      userPayload.dob = newUser.dob || null;
+
+      await axios.post(`${API_BASE_URL}/api/admin/adduser`, userPayload, { headers: { 'Authorization': `Bearer ${token}` } });
 
       Swal.fire('Success!', 'User added successfully!', 'success');
       setShowAddForm(false);
-      setNewUser({ fullname: '', email: '', password: '', role: 'Staff', phone: '', dob: '' });
-      fetchUsers();
+      // Reset form state, pre-selecting first department if available
+      setNewUser({
+          fullname: '', email: '', password: '', role: 'Staff', phone: '', dob: '',
+          department_id: departments.length > 0 ? departments[0].id : ''
+      });
+      setAddPasswordStrength({ strength: 0, message: '', color: 'gray' });
+      setAddValidationErrors({});
+      fetchUsers(); // Refresh list
     } catch (error) {
-      Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to add user.', 'error');
+      Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to add user due to a server error.', 'error');
     }
   };
 
-  const handleEditRole = (user) => {
-    setEditingUserId(user.id);
-    setSelectedRole(user.role);
+  const getAddValidationClass = (fieldName) => {
+    if (addValidationErrors[fieldName]) {
+      return 'border-red-500 focus:border-red-500 focus:ring-red-500';
+    }
+    const fieldValue = newUser[fieldName];
+    // Only green if value exists AND no error, and for password, if strong
+    if (fieldValue && !addValidationErrors[fieldName]) {
+        if (fieldName === 'email' && validateEmail(fieldValue).isValid) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
+        if (fieldName === 'phone' && validatePhone(fieldValue).isValid) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
+        if (fieldName === 'password' && addPasswordStrength.strength >= 4) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
+        if (fieldName === 'fullname' && fieldValue.trim()) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
+        if (fieldName === 'department_id' && fieldValue) return 'border-green-500 focus:border-green-500 focus:ring-green-500'; // NEW: Department validation class
+    }
+    return '';
   };
 
-  const handleSaveRole = async (userId) => {
+
+  // --- HANDLERS FOR INLINE EDITING ---
+  const handleEditUser = (user) => {
+    // Set the user currently being edited. Initialize newPassword as empty.
+    // Ensure department_id is passed for editing
+    setEditingUser({ ...user, newPassword: '', department_id: user.department_id || '' }); // NEW: department_id initialized
+    setShowEditPassword(false);
+    setEditPasswordStrength({ strength: 0, message: '', color: 'gray' });
+    setEditValidationErrors({});
+    setActiveActionMenuId(null);
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditingUser(prev => ({ ...prev, [name]: value }));
+
+    let currentErrors = { ...editValidationErrors };
+    if (name === 'email') {
+      const { isValid, message } = validateEmail(value);
+      currentErrors.email = isValid ? '' : message;
+    } else if (name === 'phone') {
+      const { isValid, message } = validatePhone(value);
+      currentErrors.phone = isValid ? '' : message;
+    } else if (name === 'newPassword') {
+      const strengthResult = getPasswordStrength(value);
+      setEditPasswordStrength(strengthResult);
+      currentErrors.newPassword = strengthResult.strength < 4 && value.length > 0 ? strengthResult.message : '';
+    } else if (name === 'fullname' && !value.trim()) {
+        currentErrors.fullname = "Full name is required.";
+    } else if (name === 'fullname') {
+        currentErrors.fullname = "";
+    }
+    // No specific validation needed for department_id beyond selection
+    setEditValidationErrors(currentErrors);
+  };
+
+
+  const handleSaveEdit = async (userId) => {
+    if (!editingUser) return;
+
+    let errors = {};
+    if (!editingUser.fullname.trim()) { errors.fullname = "Full name is required."; }
+    const emailValidation = validateEmail(editingUser.email);
+    if (!emailValidation.isValid) errors.email = emailValidation.message;
+
+    if (editingUser.newPassword) {
+      const passwordValidation = getPasswordStrength(editingUser.newPassword);
+      if (passwordValidation.strength < 4) { errors.newPassword = passwordValidation.message || 'Password is not strong enough.'; }
+    }
+    if (editingUser.phone) {
+      const phoneValidation = validatePhone(editingUser.phone);
+      if (!phoneValidation.isValid) errors.phone = phoneValidation.message;
+    }
+    if (!editingUser.department_id && (editingUser.role === 'Staff' || editingUser.role === 'DepartmentHead')) { // NEW: Validate department for relevant roles
+        errors.department_id = "Department is required for this role.";
+    } else if (editingUser.department_id && Object.values(departments).some(d => d.id === editingUser.department_id) === false) {
+        errors.department_id = "Invalid department selected.";
+    }
+
+    setEditValidationErrors(errors);
+    if (Object.values(errors).some(msg => msg !== '')) {
+      Swal.fire('Validation Error', 'Please correct the errors in the form before saving.', 'error');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
-      if (!token) throw new Error('Authentication token not found.');
+      if (!token) { Swal.fire('Error', 'Authentication token not found. Please log in.', 'error'); return; }
 
-      await axios.put(`http://localhost:3000/api/admin/users/${userId}`,
-        { role: selectedRole },
+      const updatePayload = {
+        fullname: editingUser.fullname,
+        email: editingUser.email,
+        role: editingUser.role,
+        phone: editingUser.phone,
+        // Ensure DOB is sent as a string (YYYY-MM-DD) or null
+        dob: editingUser.dob ? editingUser.dob.substring(0, 10) : null,
+        status: editingUser.status,
+        department_id: editingUser.department_id || null // NEW: Include department_id in payload
+      };
+
+      if (editingUser.newPassword) {
+        updatePayload.password = editingUser.newPassword;
+      }
+
+      await axios.put(`${API_BASE_URL}/api/admin/users/${userId}`,
+        updatePayload,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
 
-      await fetchUsers();
-      setEditingUserId(null);
-      Swal.fire('Success', 'User role updated successfully!', 'success');
+      Swal.fire('Success', 'User updated successfully!', 'success');
+      setEditingUser(null);
+      fetchUsers();
     } catch (error) {
-      Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to update role.', 'error');
+      Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to update user.', 'error');
     }
   };
 
   const handleCancelEdit = () => {
-    setEditingUserId(null);
+    setEditingUser(null);
+    setEditValidationErrors({});
+    setEditPasswordStrength({ strength: 0, message: '', color: 'gray' });
   };
 
   const handleDeleteUser = async (userId, username) => {
+    setActiveActionMenuId(null);
     const result = await Swal.fire({
       title: 'Are you sure?',
       text: `This will permanently delete user "${username}". You won't be able to revert this!`,
@@ -151,7 +444,7 @@ const UserManagementPage = () => {
         const token = localStorage.getItem('token');
         if (!token) throw new Error('Authentication token not found.');
 
-        await axios.delete(`http://localhost:3000/api/admin/users/${userId}`, {
+        await axios.delete(`${API_BASE_URL}/api/admin/users/${userId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         await fetchUsers();
@@ -162,12 +455,92 @@ const UserManagementPage = () => {
     }
   };
 
-  const sidebarLinkClass = ({ isActive }) =>
-    `px-5 py-3.5 hover:bg-white/20 transition-colors flex items-center gap-3.5 text-sm font-medium rounded-lg mx-3 my-1.5 ${
-      isActive
-        ? (darkMode ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/30 text-white shadow-md')
-        : (darkMode ? 'text-slate-300 hover:text-white hover:bg-slate-700/50' : 'text-indigo-100 hover:text-white')
-    }`;
+  const handleToggleUserStatus = async (user) => {
+    setActiveActionMenuId(null);
+    const newStatus = !user.status;
+
+    const result = await Swal.fire({
+      title: 'Confirm Action',
+      text: `Are you sure you want to ${newStatus ? 'ACTIVATE' : 'DEACTIVATE'} user "${user.fullname}"?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: newStatus ? '#28a745' : '#dc3545',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: newStatus ? 'Yes, Activate' : 'Yes, Deactivate'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found.');
+
+        await axios.put(`${API_BASE_URL}/api/admin/users/${user.id}/status`,
+          { status: newStatus },
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        Swal.fire('Success', `User ${user.fullname} has been ${newStatus ? 'activated' : 'deactivated'}.`, 'success');
+        fetchUsers();
+      } catch (error) {
+        Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to update user status.', 'error');
+      }
+    }
+  };
+
+  const handleForcePasswordReset = async (userId, username) => {
+    setActiveActionMenuId(null);
+    const result = await Swal.fire({
+      title: 'Force Password Reset?',
+      text: `This will reset the password for "${username}" to a temporary one or send a reset link (depending on backend). Confirm?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ffc107',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, Reset Password'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('Authentication token not found.');
+
+        const response = await axios.put(`${API_BASE_URL}/api/admin/users/${userId}/reset-password`,
+          {},
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+
+        const tempPassword = response.data?.tempPassword || 'A new password has been set/emailed.';
+
+        Swal.fire({
+          title: 'Password Reset',
+          html: `<p>Password for <strong>${username}</strong> has been reset.</p><p><strong>Temporary Password:</strong> <code>${tempPassword}</code><br/>(Please communicate this to the user securely)</p>`,
+          icon: 'success',
+          confirmButtonText: 'Got It',
+          customClass: {
+            htmlContainer: 'text-left'
+          }
+        });
+      } catch (error) {
+        Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to force password reset.', 'error');
+      }
+    }
+  };
+
+
+  const getEditValidationClass = (fieldName) => {
+    if (editValidationErrors[fieldName]) {
+      return 'border-red-500 focus:border-red-500 focus:ring-red-500';
+    }
+    const fieldValue = editingUser?.[fieldName];
+    if (fieldValue !== undefined && !editValidationErrors[fieldName]) {
+        if (fieldName === 'newPassword' && editPasswordStrength.strength >= 4) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
+        if (fieldName === 'email' && validateEmail(fieldValue).isValid) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
+        if (fieldName === 'phone' && validatePhone(fieldValue).isValid) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
+        if (fieldName === 'fullname' && fieldValue.trim()) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
+        if (fieldName === 'department_id' && fieldValue) return 'border-green-500 focus:border-green-500 focus:ring-green-500'; // NEW: Department validation class
+    }
+    return '';
+  };
+
 
   const inputBaseClass = `w-full px-3 py-2 rounded-md border text-sm transition-colors duration-150 focus:ring-2 focus-visible:outline-none ${
     darkMode
@@ -177,50 +550,39 @@ const UserManagementPage = () => {
 
   const buttonBaseClass = "px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors flex items-center gap-1.5";
 
-  if (isLoadingAuth) {
+
+  const canViewOrders = ['Admin', 'Staff', 'DepartmentHead', 'StockManager'];
+  const showOrdersLink = useMemo(() => {
+    return canViewOrders.includes(currentUser?.role);
+  }, [currentUser?.role]);
+
+  // Show loading spinner if any critical data (auth, users, departments) is loading
+  if (isLoadingAuth || isLoadingUsers || isLoadingDepartments) {
     return (
-      <div className={`flex h-screen items-center justify-center ${darkMode ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>
-        Loading authentication...
+      <div className={`flex h-screen items-center justify-center ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+        <LoadingSpinner size="lg" />
+        <p className={`ml-4 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+          {isLoadingAuth ? 'Authenticating...' : (isLoadingDepartments ? 'Loading departments...' : 'Loading users...')}
+        </p>
       </div>
     );
   }
 
+  // Access Denied Block - wrapped in Layout to get the sidebar, but content is centered
   if (!currentUser || currentUser.role !== 'Admin') {
     return (
-      <div className={`flex h-screen font-sans antialiased ${darkMode ? 'dark' : ''}`}>
-        <aside className={`fixed top-0 left-0 w-[250px] h-full flex flex-col z-50 ${darkMode ? 'bg-slate-800' : 'bg-gradient-to-b from-indigo-600 to-indigo-700'}`} />
-        <div className={`flex-1 flex flex-col ml-[250px] items-center justify-center p-6 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+      <Layout>
+        <div className={`flex-1 flex flex-col items-center justify-center p-6 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
           <h1 className={`text-2xl font-semibold mb-4 ${darkMode ? 'text-red-400' : 'text-red-600'}`}>Access Denied</h1>
           <p className={`${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>You do not have permission to view this page.</p>
         </div>
-      </div>
+      </Layout>
     );
   }
 
   return (
-    <div className={`flex h-screen font-sans antialiased ${darkMode ? 'dark' : ''}`}>
-      {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 w-[250px] h-full flex flex-col z-50 transition-colors duration-300 shadow-xl ${
-        darkMode ? 'bg-slate-800 border-r border-slate-700' : 'bg-gradient-to-b from-indigo-600 to-indigo-700 border-r border-indigo-700'
-      }`}>
-        <div className="flex items-center justify-center h-20 border-b border-white/20">
-          <MdSchool className={`text-3xl ${darkMode ? 'text-indigo-400' : 'text-white'}`} />
-          <h1 className={`ml-3 text-2xl font-bold tracking-tight ${darkMode ? 'text-slate-100' : 'text-white'}`}>School IMS</h1>
-        </div>
-        <nav className="flex-grow pt-5">
-          <NavLink to="/dashboard" className={sidebarLinkClass}><MdDashboard className="text-xl" /> Dashboard</NavLink>
-          <NavLink to="/inventory" className={sidebarLinkClass}><MdInventory className="text-xl" /> Inventory</NavLink>
-          <NavLink to="/additemsform" className={sidebarLinkClass}><MdAddBox className="text-xl" /> Add Items</NavLink>
-          <NavLink to="/viewitems" className={sidebarLinkClass}><MdList className="text-xl" /> View Items</NavLink>
-          <NavLink to="/reports" className={sidebarLinkClass}><MdAssessment className="text-xl" /> Reports</NavLink>
-          <NavLink to="/admin/users" className={sidebarLinkClass}><MdPeople className="text-xl" /> User Management</NavLink>
-          <NavLink to="/settings" className={sidebarLinkClass}><MdSettings className="text-xl" /> Settings</NavLink>
-        </nav>
-      </aside>
-
-      {/* Main Content */}
-      <div className={`flex-1 flex flex-col ml-[250px] min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-        {/* Header */}
+    <Layout>
+      <div className={`flex-1 flex flex-col min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
         <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 ${
           darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'
         } shadow-sm`}>
@@ -235,8 +597,8 @@ const UserManagementPage = () => {
           </button>
         </header>
 
-        {/* Page Content */}
-        <main className="flex-1 p-6 pt-[104px] overflow-y-auto">
+        <main className="flex-1 p-6 pt-[104px] ml-[250px] overflow-y-auto max-w-full">
+          
           {/* Add User Form */}
           {showAddForm && (
             <div className={`mb-6 p-6 rounded-lg shadow-lg ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'}`}>
@@ -253,40 +615,83 @@ const UserManagementPage = () => {
 
               <form onSubmit={handleAddUserSubmit}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  {/* Full Name, Email, Password, Role inputs remain the same */}
                   <div>
-                    <label htmlFor="fullname" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                    <label htmlFor="addFullname" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                       Full Name <span className="text-red-500">*</span>
                     </label>
                     <input
-                      id="fullname" type="text" name="fullname" value={newUser.fullname}
-                      onChange={handleNewUserChange} className={inputBaseClass} required
+                      id="addFullname" type="text" name="fullname" value={newUser.fullname}
+                      onChange={handleNewUserChange} className={`${inputBaseClass} ${getAddValidationClass('fullname')}`} required
                     />
+                    {addValidationErrors.fullname && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <MdError size={14}/> {addValidationErrors.fullname}
+                      </p>
+                    )}
                   </div>
                   <div>
-                    <label htmlFor="email" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                    <label htmlFor="addEmail" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                       Email <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      id="email" type="email" name="email" value={newUser.email}
-                      onChange={handleNewUserChange} className={inputBaseClass} required
-                    />
+                    <div className="relative">
+                      <input
+                        id="addEmail" type="email" name="email" value={newUser.email}
+                        onChange={handleNewUserChange} className={`${inputBaseClass} ${getAddValidationClass('email')}`} required
+                      />
+                      {newUser.email && !addValidationErrors.email && validateEmail(newUser.email).isValid && (
+                        <MdCheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500" size={20}/>
+                      )}
+                    </div>
+                    {addValidationErrors.email && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <MdError size={14}/> {addValidationErrors.email}
+                      </p>
+                    )}
                   </div>
                   <div>
-                    <label htmlFor="password" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                    <label htmlFor="addPassword" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                       Password <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      id="password" type="password" name="password" value={newUser.password}
-                      onChange={handleNewUserChange} className={inputBaseClass} required minLength="6"
-                    />
+                    <div className="relative">
+                      <input
+                        id="addPassword"
+                        type={showAddPassword ? "text" : "password"}
+                        name="password"
+                        value={newUser.password}
+                        onChange={handleNewUserChange}
+                        className={`${inputBaseClass} pr-10 ${getAddValidationClass('password')}`}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAddPassword(!showAddPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                        aria-label={showAddPassword ? "Hide password" : "Show password"}
+                      >
+                        {showAddPassword ? <MdVisibilityOff size={20}/> : <MdVisibility size={20}/>}
+                      </button>
+                    </div>
+                    {newUser.password && (
+                      <p className={`text-xs mt-1 flex items-center gap-1 ${
+                        addPasswordStrength.color === 'green' ? 'text-green-500' :
+                        addPasswordStrength.color === 'orange' ? 'text-orange-500' : 'text-red-500'
+                      }`}>
+                        {addPasswordStrength.color === 'green' ? <MdCheckCircle size={14}/> : <MdError size={14}/>}
+                        {addPasswordStrength.message}
+                      </p>
+                    )}
+                    {addValidationErrors.password && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <MdError size={14}/> {addValidationErrors.password}
+                      </p>
+                    )}
                   </div>
                   <div>
-                    <label htmlFor="role" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                    <label htmlFor="addRole" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                       Role <span className="text-red-500">*</span>
                     </label>
                     <select
-                      id="role" name="role" value={newUser.role}
+                      id="addRole" name="role" value={newUser.role}
                       onChange={handleNewUserChange} className={inputBaseClass} required
                     >
                       {AVAILABLE_ROLES.map(role => (
@@ -294,25 +699,66 @@ const UserManagementPage = () => {
                       ))}
                     </select>
                   </div>
+                  {/* NEW: Department Selection for Add User Form */}
                   <div>
-                    <label htmlFor="phone" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                      Phone Number
+                    <label htmlFor="addDepartment" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                      Department <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      id="phone"
-                      type="tel"
-                      name="phone"
-                      value={newUser.phone}
-                      onChange={handleNewUserChange}
-                      className={inputBaseClass}
-                    />
+                    {isLoadingDepartments ? (
+                      <div className={`${inputBaseClass} flex items-center`}>
+                        <LoadingSpinner size="sm" /> <span className="ml-2">Loading departments...</span>
+                      </div>
+                    ) : departments.length === 0 ? (
+                      <div className={`${inputBaseClass} flex items-center text-red-500`}>
+                        <MdError size={18} className="mr-1" /> No departments available
+                      </div>
+                    ) : (
+                      <select
+                        id="addDepartment" name="department_id" value={newUser.department_id}
+                        onChange={handleNewUserChange} className={`${inputBaseClass} ${getAddValidationClass('department_id')}`}
+                        required
+                      >
+                        <option value="">Select Department</option>
+                        {departments.map(dept => (
+                          <option key={dept.id} value={dept.id}>{dept.name}</option>
+                        ))}
+                      </select>
+                    )}
+                    {addValidationErrors.department_id && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <MdError size={14}/> {addValidationErrors.department_id}
+                      </p>
+                    )}
                   </div>
                   <div>
-                    <label htmlFor="dob" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                    <label htmlFor="addPhone" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                      Phone Number
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="addPhone"
+                        type="tel"
+                        name="phone"
+                        value={newUser.phone}
+                        onChange={handleNewUserChange}
+                        className={`${inputBaseClass} ${getAddValidationClass('phone')}`}
+                      />
+                      {newUser.phone && !addValidationErrors.phone && validatePhone(newUser.phone).isValid && (
+                        <MdCheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500" size={20}/>
+                      )}
+                    </div>
+                    {addValidationErrors.phone && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <MdError size={14}/> {addValidationErrors.phone}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label htmlFor="addDob" className={`block mb-1 text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                       Date of Birth
                     </label>
                     <input
-                      id="dob" type="date" name="dob" value={newUser.dob}
+                      id="addDob" type="date" name="dob" value={newUser.dob}
                       onChange={handleNewUserChange} className={inputBaseClass}
                     />
                   </div>
@@ -320,7 +766,15 @@ const UserManagementPage = () => {
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowAddForm(false)}
+                    onClick={() => {
+                        setShowAddForm(false);
+                        setNewUser({
+                            fullname: '', email: '', password: '', role: 'Staff', phone: '', dob: '',
+                            department_id: departments.length > 0 ? departments[0].id : '' // Reset to first dept or empty
+                        });
+                        setAddValidationErrors({});
+                        setAddPasswordStrength({ strength: 0, message: '', color: 'gray' });
+                    }}
                     className={`${buttonBaseClass} ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'}`}
                   >
                     <MdCancel /> Cancel
@@ -336,119 +790,429 @@ const UserManagementPage = () => {
             </div>
           )}
 
+          {/* Search, Sort & Pagination Controls */}
+          <div className={`mb-4 p-4 rounded-lg shadow-md flex flex-wrap gap-4 items-center justify-between ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'}`}>
+            <div className="flex-1 min-w-[200px] max-w-md">
+              <label htmlFor="search" className="sr-only">Search users</label>
+              <input
+                id="search"
+                type="text"
+                placeholder="Search by name, email, role, or department..." // NEW: Updated placeholder
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`${inputBaseClass} text-sm`}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Users per page:</span>
+              <select
+                value={usersPerPage}
+                onChange={(e) => { setUsersPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                className={`${inputBaseClass} w-auto text-sm p-1.5`}
+              >
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+          </div>
+
           {/* Users Table */}
           <div className={`w-full rounded-xl shadow-xl p-0 overflow-hidden ${
             darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'
           }`}>
             {isLoadingUsers ? (
-              <div className="p-10 text-center">Loading users...</div>
-            ) : users.length === 0 ? (
-              <div className="p-10 text-center">No users found.</div>
+              <div className="p-10 text-center">
+                <LoadingSpinner size="md"/>
+                <p className={`mt-3 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Loading users...</p>
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className={`p-10 text-center ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                <MdPeople size={48} className="mx-auto mb-3 opacity-70"/>
+                <p className="font-medium text-lg">No users found.</p>
+                <p className="text-sm">Try adjusting your search filters or add a new user.</p>
+              </div>
             ) : (
-              <table className="w-full text-sm">
-                <thead className={`${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
-                  <tr>
-                    <th className="py-3 px-4 text-left text-xs uppercase font-semibold">Full Name</th>
-                    <th className="py-3 px-4 text-left text-xs uppercase font-semibold hidden sm:table-cell">Email</th>
-                    <th className="py-3 px-4 text-left text-xs uppercase font-semibold">Role</th>
-                    <th className="py-3 px-4 text-left text-xs uppercase font-semibold hidden md:table-cell">Phone</th>
-                    <th className="py-3 px-4 text-left text-xs uppercase font-semibold hidden lg:table-cell">DOB</th>
-                    <th className="py-3 px-4 text-left text-xs uppercase font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className={`${darkMode ? 'divide-y divide-slate-700' : 'divide-y divide-slate-200'}`}>
-                  {users.map((user) => (
-                    <tr key={user.id} className={`${darkMode ? 'hover:bg-slate-700/60' : 'hover:bg-slate-50/70'}`}>
-                      {/* Full Name, Email, Role, DOB cells remain the same */}
-                      <td className={`py-3 px-4 font-medium ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>{user.fullname}</td>
-                      <td className={`py-3 px-4 hidden sm:table-cell ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>{user.email}</td>
-                      <td className="py-3 px-4">
-                        {editingUserId === user.id ? (
-                          <select
-                            value={selectedRole}
-                            onChange={(e) => setSelectedRole(e.target.value)}
-                            className={`${inputBaseClass} text-xs p-1 w-full sm:w-auto`}
-                            aria-label={`Edit role for ${user.fullname}`}
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className={`${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                      <tr>
+                        {/* Sortable Headers */}
+                        {[
+                          { key: 'fullname', label: 'Full Name' },
+                          { key: 'email', label: 'Email', hiddenClass: 'hidden sm:table-cell' },
+                          { key: 'role', label: 'Role' },
+                          { key: 'department_name', label: 'Department', hiddenClass: 'hidden sm:table-cell' }, // NEW: Department column header
+                          { key: 'status', label: 'Status' },
+                          { key: 'phone', label: 'Phone', hiddenClass: 'hidden md:table-cell' },
+                          { key: 'dob', label: 'DOB', hiddenClass: 'hidden lg:table-cell' },
+                        ].map(({ key, label, hiddenClass }) => (
+                          <th
+                            key={key}
+                            className={`py-3 px-4 text-left text-xs uppercase font-semibold cursor-pointer ${hiddenClass || ''}`}
+                            onClick={() => handleSort(key)}
                           >
-                            {AVAILABLE_ROLES.map(role => (
-                              <option key={role} value={role}>{role}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            user.role === 'Admin' ? (darkMode ? 'bg-red-500/30 text-red-300' : 'bg-red-100 text-red-700')
-                            : user.role === 'Staff' ? (darkMode ? 'bg-sky-500/30 text-sky-300' : 'bg-sky-100 text-sky-700')
-                            : user.role === 'DepartmentHead' ? (darkMode ? 'bg-purple-500/30 text-purple-300' : 'bg-purple-100 text-purple-700')
-                            : user.role === 'StockManager' ? (darkMode ? 'bg-teal-500/30 text-teal-300' : 'bg-teal-100 text-teal-700')
-                            : (darkMode ? 'bg-slate-600 text-slate-300' : 'bg-slate-200 text-slate-600')
-                          }`}>
-                            {user.role}
-                          </span>
-                        )}
-                      </td>
-                      <td className={`py-3 px-4 hidden md:table-cell ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {user.phone || 'N/A'}
-                      </td>
-                      <td className={`py-3 px-4 hidden lg:table-cell ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {user.dob ? new Date(user.dob).toLocaleDateString() : 'N/A'}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1 sm:gap-2">
-                          {/* Action buttons remain the same */}
-                          {editingUserId === user.id ? (
-                            <>
-                              <button
-                                onClick={() => handleSaveRole(user.id)}
-                                className={`${buttonBaseClass} ${darkMode ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}`}
-                                aria-label="Save role change"
+                            <div className="flex items-center gap-1">
+                              {label}
+                              {sortBy === key && (
+                                sortOrder === 'asc' ? <MdArrowUpward size={16} /> : <MdArrowDownward size={16} />
+                              )}
+                              {sortBy !== key && <MdSort size={16} className="text-slate-400 opacity-50"/>}
+                            </div>
+                          </th>
+                        ))}
+                        <th className="py-3 px-4 text-center text-xs uppercase font-semibold">Password</th>
+                        <th className="py-3 px-4 text-center text-xs uppercase font-semibold">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`${darkMode ? 'divide-y divide-slate-700' : 'divide-y divide-slate-200'}`}>
+                      {currentUsers.map((user) => (
+                        <tr key={user.id} className={`${darkMode ? 'hover:bg-slate-700/60' : 'hover:bg-slate-50/70'}`}>
+                          {/* Full Name Cell */}
+                          <td className={`py-3 px-4 font-medium ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>
+                            {editingUser?.id === user.id ? (
+                              <>
+                                <input
+                                  type="text" name="fullname" value={editingUser.fullname}
+                                  onChange={handleEditChange} className={`${inputBaseClass} ${getEditValidationClass('fullname')}`} required
+                                />
+                                {editValidationErrors.fullname && (
+                                  <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                    <MdError size={14}/> {editValidationErrors.fullname}
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              user.fullname
+                            )}
+                          </td>
+                          {/* Email Cell */}
+                          <td className={`py-3 px-4 hidden sm:table-cell ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                            {editingUser?.id === user.id ? (
+                              <>
+                                <div className="relative">
+                                  <input
+                                    type="email" name="email" value={editingUser.email}
+                                    onChange={handleEditChange} className={`${inputBaseClass} ${getEditValidationClass('email')}`} required
+                                  />
+                                  {editingUser.email && !editValidationErrors.email && validateEmail(editingUser.email).isValid && (
+                                    <MdCheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500" size={20}/>
+                                  )}
+                                </div>
+                                {editValidationErrors.email && (
+                                  <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                    <MdError size={14}/> {editValidationErrors.email}
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              user.email
+                            )}
+                          </td>
+                          {/* Role Cell */}
+                          <td className="py-3 px-4">
+                            {editingUser?.id === user.id ? (
+                              <select
+                                name="role" value={editingUser.role} onChange={handleEditChange}
+                                className={`${inputBaseClass} text-xs p-1 w-full sm:w-auto`}
+                                aria-label={`Edit role for ${user.fullname}`}
+                                disabled={String(currentUser.id) === String(user.id) || (user.role === 'Admin' && currentUser.role === 'Admin' && String(currentUser.id) !== String(user.id))}
                               >
-                                <MdSave /> <span className="hidden sm:inline">Save</span>
-                              </button>
-                              <button
-                                onClick={handleCancelEdit}
-                                className={`${buttonBaseClass} ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-200' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}
-                                aria-label="Cancel role edit"
-                              >
-                                <MdCancel /> <span className="hidden sm:inline">Cancel</span>
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              onClick={() => handleEditRole(user)}
-                              disabled={currentUser.id === user.id && user.role === 'Admin'}
-                              className={`${buttonBaseClass} ${
-                                (currentUser.id === user.id && user.role === 'Admin')
-                                ? (darkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-300 text-slate-500 cursor-not-allowed')
-                                : (darkMode ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white')
-                              }`}
-                              aria-label={`Edit role for ${user.fullname}`}
-                            >
-                              <MdEdit /> <span className="hidden sm:inline">Edit Role</span>
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDeleteUser(user.id, user.fullname)}
-                            disabled={currentUser.id === user.id || user.role === 'Admin'}
-                            className={`${buttonBaseClass} ${
-                              (currentUser.id === user.id || user.role === 'Admin')
-                                ? (darkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-300 text-slate-500 cursor-not-allowed')
-                                : (darkMode ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-red-500 hover:bg-red-600 text-white')
-                            }`}
-                            aria-label={`Delete user ${user.fullname}`}
-                          >
-                            <MdDelete /> <span className="hidden sm:inline">Delete</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                                {AVAILABLE_ROLES.map(role => (
+                                  <option key={role} value={role}>{role}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                user.role === 'Admin' ? (darkMode ? 'bg-red-500/30 text-red-300' : 'bg-red-100 text-red-700')
+                                : user.role === 'Staff' ? (darkMode ? 'bg-sky-500/30 text-sky-300' : 'bg-sky-100 text-sky-700')
+                                : user.role === 'DepartmentHead' ? (darkMode ? 'bg-purple-500/30 text-purple-300' : 'bg-purple-100 text-purple-700')
+                                : user.role === 'StockManager' ? (darkMode ? 'bg-teal-500/30 text-teal-300' : 'bg-teal-100 text-teal-700')
+                                : (darkMode ? 'bg-slate-600 text-slate-300' : 'bg-slate-200 text-slate-600')
+                              }`}>
+                                {user.role}
+                              </span>
+                            )}
+                          </td>
+                          {/* NEW: Department Cell */}
+                          <td className={`py-3 px-4 hidden sm:table-cell ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                            {editingUser?.id === user.id ? (
+                              <>
+                                {isLoadingDepartments ? (
+                                    <div className="flex items-center">
+                                      <LoadingSpinner size="sm" /> <span className="ml-1 text-xs">Loading...</span>
+                                    </div>
+                                ) : departments.length === 0 ? (
+                                    <span className="text-red-500 text-xs">N/A</span>
+                                ) : (
+                                    <select
+                                        name="department_id"
+                                        value={editingUser.department_id || ''} // Use empty string for unselected
+                                        onChange={handleEditChange}
+                                        className={`${inputBaseClass} text-xs p-1 w-full sm:w-auto ${getEditValidationClass('department_id')}`}
+                                    >
+                                        <option value="">Select Department</option>
+                                        {departments.map(dept => (
+                                            <option key={dept.id} value={dept.id}>{dept.name}</option>
+                                        ))}
+                                    </select>
+                                )}
+                                {editValidationErrors.department_id && (
+                                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                        <MdError size={14}/> {editValidationErrors.department_id}
+                                    </p>
+                                )}
+                              </>
+                            ) : (
+                              user.department_name || 'N/A' // Display department name
+                            )}
+                          </td>
+                          {/* Status Cell */}
+                          <td className="py-3 px-4">
+                              {editingUser?.id === user.id ? (
+                                  <div className="flex items-center">
+                                      <label htmlFor={`status-toggle-${user.id}`} className="sr-only">Toggle status for {user.fullname}</label>
+                                      <input
+                                          type="checkbox"
+                                          id={`status-toggle-${user.id}`}
+                                          checked={editingUser.status}
+                                          onChange={(e) => setEditingUser(prev => ({ ...prev, status: e.target.checked }))}
+                                          className="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                          disabled={String(currentUser.id) === String(user.id)}
+                                      />
+                                      <span className={`text-xs font-semibold ${editingUser.status ? (darkMode ? 'text-green-300' : 'text-green-700') : (darkMode ? 'text-red-300' : 'text-red-700')}`}>
+                                          {editingUser.status ? 'Active' : 'Inactive'}
+                                      </span>
+                                  </div>
+                              ) : (
+                                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                      user.status ? (darkMode ? 'bg-green-500/30 text-green-300' : 'bg-green-100 text-green-700')
+                                                  : (darkMode ? 'bg-red-500/30 text-red-300' : 'bg-red-100 text-red-700')
+                                  }`}>
+                                      {user.status ? 'Active' : 'Inactive'}
+                                  </span>
+                              )}
+                          </td>
+                          {/* Phone Cell */}
+                          <td className={`py-3 px-4 hidden md:table-cell ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {editingUser?.id === user.id ? (
+                              <>
+                                <div className="relative">
+                                  <input
+                                    type="tel" name="phone" value={editingUser.phone}
+                                    onChange={handleEditChange} className={`${inputBaseClass} ${getEditValidationClass('phone')}`}
+                                  />
+                                  {editingUser.phone && !editValidationErrors.phone && validatePhone(editingUser.phone).isValid && (
+                                    <MdCheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500" size={20}/>
+                                  )}
+                                </div>
+                                {editValidationErrors.phone && (
+                                  <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                    <MdError size={14}/> {editValidationErrors.phone}
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              user.phone || 'N/A'
+                            )}
+                          </td>
+                          {/* DOB Cell */}
+                          <td className={`py-3 px-4 hidden lg:table-cell ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {editingUser?.id === user.id ? (
+                              <input
+                                type="date" name="dob" value={editingUser.dob ? editingUser.dob.substring(0, 10) : ''}
+                                onChange={handleEditChange} className={inputBaseClass}
+                              />
+                            ) : (
+                              user.dob ? new Date(user.dob).toLocaleDateString() : 'N/A'
+                            )}
+                          </td>
+                          {/* Password Cell (Editable Field) */}
+                          <td className={`py-3 px-4 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {editingUser?.id === user.id ? (
+                              <>
+                                <div className="relative">
+                                  <input
+                                    type={showEditPassword ? "text" : "password"}
+                                    name="newPassword"
+                                    value={editingUser.newPassword}
+                                    onChange={handleEditChange}
+                                    className={`${inputBaseClass} pr-10 ${getEditValidationClass('newPassword')}`}
+                                    placeholder="Leave blank to keep current"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowEditPassword(!showEditPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                                    aria-label={showEditPassword ? "Hide new password" : "Show new password"}
+                                  >
+                                    {showEditPassword ? <MdVisibilityOff size={20}/> : <MdVisibility size={20}/>}
+                                  </button>
+                                </div>
+                                {editingUser.newPassword && (
+                                  <p className={`text-xs mt-1 flex items-center gap-1 ${
+                                    editPasswordStrength.color === 'green' ? 'text-green-500' :
+                                    editPasswordStrength.color === 'orange' ? 'text-orange-500' : 'text-red-500'
+                                  }`}>
+                                    {editPasswordStrength.color === 'green' ? <MdCheckCircle size={14}/> : <MdError size={14}/>}
+                                    {editPasswordStrength.message}
+                                  </p>
+                                )}
+                                {editValidationErrors.newPassword && (
+                                  <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                    <MdError size={14}/> {editValidationErrors.newPassword}
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <span className={`${darkMode ? 'text-slate-500' : 'text-slate-600'}`}>********</span>
+                            )}
+                          </td>
+                          {/* Actions Cell */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1 sm:gap-2 justify-center relative">
+                              {editingUser?.id === user.id ? (
+                                <>
+                                  <button
+                                    onClick={() => handleSaveEdit(user.id)}
+                                    className={`${buttonBaseClass} ${darkMode ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}`}
+                                    aria-label="Save changes"
+                                    disabled={Object.values(editValidationErrors).some(err => err !== '')}
+                                  >
+                                    <MdSave /> <span className="hidden sm:inline">Save</span>
+                                  </button>
+                                  <button
+                                    onClick={handleCancelEdit}
+                                    className={`${buttonBaseClass} ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-200' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}
+                                    aria-label="Cancel edit"
+                                  >
+                                    <MdCancel /> <span className="hidden sm:inline">Cancel</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => setActiveActionMenuId(activeActionMenuId === user.id ? null : user.id)}
+                                    className={`p-2 rounded-full transition-colors ${darkMode ? 'text-slate-400 hover:bg-slate-600 hover:text-slate-100' : 'text-slate-500 hover:bg-slate-200 hover:text-slate-700'}`}
+                                    aria-label={`Actions-for-${user.id}`}
+                                    disabled={String(currentUser.id) === String(user.id) || user.role === 'Admin'}
+                                  >
+                                    <MdMoreVert size={20} />
+                                  </button>
+                                  {activeActionMenuId === user.id && (
+                                    <div
+                                      ref={actionMenuRef}
+                                      className={`absolute right-full mr-2.5 top-1/2 -translate-y-1/2 w-48 rounded-md shadow-xl z-20
+                                                  ${darkMode ? 'bg-slate-700 border-slate-600' : 'bg-white border-slate-200'} border`}
+                                    >
+                                      <button
+                                        onClick={() => setActiveActionMenuId(null)}
+                                        aria-label="Close actions menu"
+                                        className={`absolute top-1 right-1 p-1.5 rounded-full transition-colors
+                                                    ${darkMode ? 'text-slate-400 hover:bg-slate-600 hover:text-slate-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
+                                      >
+                                        <MdClose size={16} />
+                                      </button>
+                                      <div className="p-1.5 pt-7">
+                                        <button
+                                          onClick={() => handleEditUser(user)}
+                                          className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-2.5 transition-colors
+                                                      ${darkMode ? 'text-slate-200 hover:bg-blue-600 hover:text-white' : 'text-slate-700 hover:bg-blue-100 hover:text-blue-700'}`}
+                                          disabled={String(currentUser.id) === String(user.id)}
+                                        >
+                                          <MdEdit className="text-base"/> Edit Details
+                                        </button>
+                                        <button
+                                          onClick={() => handleToggleUserStatus(user)}
+                                          className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-2.5 transition-colors
+                                                      ${user.status
+                                                          ? (darkMode ? 'text-red-400 hover:bg-red-600 hover:text-white' : 'text-red-600 hover:bg-red-100 hover:text-red-700')
+                                                          : (darkMode ? 'text-green-400 hover:bg-green-600 hover:text-white' : 'text-green-600 hover:bg-green-100 hover:text-green-700')
+                                                      }`}
+                                          disabled={String(currentUser.id) === String(user.id)}
+                                        >
+                                          {user.status ? <MdToggleOff className="text-base"/> : <MdToggleOn className="text-base"/>}
+                                          {user.status ? 'Deactivate' : 'Activate'}
+                                        </button>
+                                        <button
+                                          onClick={() => handleForcePasswordReset(user.id, user.fullname)}
+                                          className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-2.5 transition-colors
+                                                      ${darkMode ? 'text-yellow-400 hover:bg-yellow-600 hover:text-white' : 'text-yellow-600 hover:bg-yellow-100 hover:text-yellow-700'}`}
+                                          disabled={String(currentUser.id) === String(user.id)}
+                                        >
+                                          <MdLockReset className="text-base"/> Reset Password
+                                        </button>
+                                        <div className={`my-1.5 h-px ${darkMode ? 'bg-slate-600' : 'bg-slate-200'}`}></div>
+                                        <button
+                                          onClick={() => handleDeleteUser(user.id, user.fullname)}
+                                          className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-2.5 transition-colors
+                                                      ${darkMode ? 'text-red-400 hover:bg-red-600 hover:text-white' : 'text-red-600 hover:bg-red-100 hover:text-red-700'}`}
+                                          disabled={String(currentUser.id) === String(user.id) || user.role === 'Admin'}
+                                        >
+                                          <MdDelete className="text-base"/> Delete
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className={`flex justify-between items-center px-4 py-3 border-t ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
+                  <span className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Showing {indexOfFirstUser + 1} to {Math.min(indexOfLastUser, filteredUsers.length)} of {filteredUsers.length} users
+                  </span>
+                  <nav className="relative z-0 inline-flex shadow-sm -space-x-px" aria-label="Pagination">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className={`relative inline-flex items-center px-2 py-2 rounded-l-md border text-sm font-medium
+                        ${darkMode ? 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}
+                        ${currentPage === 1 && 'opacity-50 cursor-not-allowed'}`}
+                    >
+                      Previous
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        aria-current={currentPage === page ? 'page' : undefined}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium
+                          ${currentPage === page
+                            ? (darkMode ? 'bg-indigo-600 text-white' : 'bg-indigo-500 text-white')
+                            : (darkMode ? 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50')
+                          }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className={`relative inline-flex items-center px-2 py-2 rounded-r-md border text-sm font-medium
+                        ${darkMode ? 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}
+                        ${currentPage === totalPages && 'opacity-50 cursor-not-allowed'}`}
+                    >
+                      Next
+                    </button>
+                  </nav>
+                </div>
+              </>
             )}
           </div>
+          
         </main>
       </div>
-    </div>
+    </Layout>
   );
 };
 

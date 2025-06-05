@@ -1,19 +1,24 @@
 // --- IMPORTS ---
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+// import axios from "axios"; // No longer needed for direct login post
 import Swal from 'sweetalert2';
 import bgImage from "../assets/school inventory image.png"; // Ensure this path is correct
 import { Eye, EyeOff, LogIn, Mail, Lock } from "lucide-react";
 import 'sweetalert2/dist/sweetalert2.min.css'; // Import SweetAlert2 CSS for proper styling
+import { useAuth } from "../contexts/AuthContext"; // Import useAuth hook
 
 // --- COMPONENT DEFINITION ---
-const Login = ({ setIsLoggedIn }) => {
+// Remove setIsLoggedIn prop, AuthContext handles auth state
+const Login = () => {
   // --- STATE HOOKS ---
   const [values, setValues] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  // const [isLoading, setIsLoading] = useState(false); // Remove local loading state
   const navigate = useNavigate();
+
+  // Get login function and loading state from AuthContext
+  const { login: authLogin, isLoadingAuth } = useAuth(); // Renamed to avoid conflict
 
   // --- EVENT HANDLERS ---
   const handleChanges = (e) => {
@@ -42,104 +47,69 @@ const Login = ({ setIsLoggedIn }) => {
         return;
     }
 
-    setIsLoading(true);
+    // setIsLoading(true); // Managed by AuthContext's isLoadingAuth
     try {
-      console.log("Frontend: Attempting axios.post to /auth/login with values:", values);
-      const response = await axios.post("http://localhost:3000/auth/login", values);
-      console.log("Frontend: axios.post successful. Response object:", response);
+      console.log("Frontend: Attempting authLogin with values:", values);
+      // CALL THE AUTH CONTEXT'S LOGIN FUNCTION
+      await authLogin(values.email, values.password);
+      console.log("Frontend: authLogin successful. Navigating now.");
 
-      // Check for successful login status (typically 200 OK)
-      if (response.status === 200 && response.data && response.data.token) {
-        console.log("Frontend: Login success block entered. Token:", response.data.token);
-        localStorage.setItem("token", response.data.token);
-        localStorage.setItem("isLoggedIn", "true"); // Consider managing this via AuthContext primarily
-        if (setIsLoggedIn) {
-            setIsLoggedIn(true); // Update parent state if prop is passed
-        }
-
-        // Optional: If using a global AuthContext, you might refresh its state here
-        // const auth = useAuth(); // Assuming useAuth() is accessible
-        // if (auth && auth.refreshUserData) {
-        //   await auth.refreshUserData(); // Ensure this is async if it involves API calls
-        // }
-
-        await Swal.fire({
+      // After authLogin completes successfully (meaning AuthContext state is updated)
+      await Swal.fire({
           title: 'Login Successful!',
           text: 'Welcome back! Redirecting you to the dashboard...',
           icon: 'success',
-          timer: 2000, // Slightly longer for readability
+          timer: 2000,
           timerProgressBar: true,
-          showConfirmButton: false, // No need for confirm button if timer is redirecting
-          customClass: { popup: 'z-50' }, // Ensure visibility
-          willClose: () => { // Navigate after the alert closes
+          showConfirmButton: false,
+          customClass: { popup: 'z-50' },
+          willClose: () => {
             console.log("Frontend: Swal success closed. Navigating to /dashboard...");
             navigate("/dashboard");
           }
-        });
-      } else {
-        // Handle cases where status is 200 but token/data might be missing, or unexpected status
-        console.warn("Frontend: Login response status was 200 but data might be problematic, or status was unexpected. Status:", response.status, "Data:", response.data);
-        Swal.fire({
-            title: 'Login Issue',
-            text: `Received an unexpected response (Status: ${response.status}). Please try again or contact support.`,
-            icon: 'info',
-            customClass: { popup: 'z-50' }
-        });
-      }
+      });
     } catch (err) {
       console.error("--- Frontend: Login CATCH block ---");
-      // Enhanced error logging
-      if (err.response) {
-        console.error("Login error - Server Response Data:", err.response.data);
-        console.error("Login error - Server Response Status:", err.response.status);
-      } else if (err.request) {
-        console.error("Login error - No response received. Request made:", err.request);
-      } else {
-        console.error('Login error - Error setting up request:', err.message);
-      }
-      console.error("Login error - Full error object:", err);
-
-      // Determine error message for Swal
-      const status = err.response?.status;
+      // Error handling from AuthContext's login function
+      const errorMsg = err.message || "An unknown error occurred during login.";
       let errorTitle = 'Login Failed';
-      let errorText = 'An unknown error occurred. Please try again later.';
       let errorIcon = 'error';
       let errorButtonColor = '#ef4444'; // Red for general error
 
-      if (err.message === "Network Error") {
-        errorTitle = 'Network Error';
-        errorText = 'Could not connect to the server. Please check your internet connection and try again.';
-      } else if (status === 401) {
-        errorTitle = 'Authentication Failed';
-        errorText = err.response.data?.message || 'Incorrect email or password. Please check your credentials.';
-        errorIcon = 'warning';
-        errorButtonColor = '#f59e0b'; // Amber for auth warnings
-      } else if (status === 404) {
-        errorTitle = 'User Not Found';
-        errorText = err.response.data?.message || 'No account found with that email address.';
-        errorIcon = 'warning';
-        errorButtonColor = '#f59e0b';
-      } else if (err.response?.data?.message) {
-        // Use server's message if available for other errors
-        errorText = err.response.data.message;
+      // Attempt to parse specific messages from the re-thrown error from AuthContext
+      if (errorMsg.includes("Incorrect email or password")) {
+          errorTitle = 'Authentication Failed';
+          errorIcon = 'warning';
+          errorButtonColor = '#f59e0b';
+      } else if (errorMsg.includes("No account found")) {
+          errorTitle = 'User Not Found';
+          errorIcon = 'warning';
+          errorButtonColor = '#f59e0b';
+      } else if (errorMsg.includes("Network Error")) {
+          errorTitle = 'Network Error';
+          errorText = 'Could not connect to the server. Please check your internet connection.';
+          errorIcon = 'error'; // Keep as error for network
       }
 
       Swal.fire({
         title: errorTitle,
-        text: errorText,
+        text: errorMsg,
         icon: errorIcon,
         confirmButtonColor: errorButtonColor,
         customClass: { popup: 'z-50' }
       });
     } finally {
       console.log("--- Frontend: handleSubmit finally block ---");
-      setIsLoading(false);
+      // setIsLoading(false); // Managed by AuthContext's isLoadingAuth
     }
   };
 
   // --- DERIVED STATE FOR UI ---
   const isEmailEmpty = values.email.trim() === "";
   const isPasswordEmpty = values.password.trim() === "";
+
+  // Use isLoadingAuth from AuthContext for button disabled state
+  const buttonDisabled = isLoadingAuth;
 
   // --- JSX RETURN ---
   return (
@@ -181,7 +151,7 @@ const Login = ({ setIsLoggedIn }) => {
                   transition-all duration-150 ease-in-out sm:text-sm 
                   disabled:opacity-70 disabled:bg-gray-100
                 `}
-                disabled={isLoading}
+                disabled={buttonDisabled} // Use context's loading state
                 autoComplete="email"
               />
             </div>
@@ -193,7 +163,7 @@ const Login = ({ setIsLoggedIn }) => {
                 Password
               </label>
               <a
-                href="#" // Changed to # to prevent navigation, handled by onClick
+                href="#"
                 className="text-xs font-medium text-indigo-600 hover:text-indigo-500 hover:underline"
                 onClick={(e) => {
                     e.preventDefault();
@@ -229,7 +199,7 @@ const Login = ({ setIsLoggedIn }) => {
                   transition-all duration-150 ease-in-out sm:text-sm 
                   disabled:opacity-70 disabled:bg-gray-100
                 `}
-                disabled={isLoading}
+                disabled={buttonDisabled} // Use context's loading state
                 autoComplete="current-password"
               />
               <button
@@ -238,7 +208,7 @@ const Login = ({ setIsLoggedIn }) => {
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 aria-pressed={showPassword}
                 className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 rounded-md disabled:opacity-50"
-                disabled={isLoading}
+                disabled={buttonDisabled} // Use context's loading state
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
@@ -247,14 +217,14 @@ const Login = ({ setIsLoggedIn }) => {
 
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={buttonDisabled} // Use context's loading state
             className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg py-2.5 px-4 font-semibold transition-all duration-150 ease-in-out 
                         hover:from-indigo-700 hover:to-purple-700 hover:shadow-lg
                         focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 
                         active:scale-[0.98]
                         disabled:opacity-60 disabled:cursor-not-allowed`}
           >
-            {isLoading ? (
+            {isLoadingAuth ? ( // Use context's loading state here
               <>
                 <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -273,7 +243,7 @@ const Login = ({ setIsLoggedIn }) => {
           <div className="text-sm text-center text-gray-600 pt-2">
             Don’t have an account?{" "}
             <a
-              href="/signup" // This should ideally use <Link to="/signup"> from react-router-dom
+              href="/signup" // Consider using <Link to="/signup"> from react-router-dom for better SPA behavior
               className="text-indigo-600 font-medium hover:text-indigo-500 hover:underline"
             >
               Sign up here
