@@ -1,51 +1,30 @@
-/*import { connectToDatabase } from "../lib/db.js";
-import bcrypt from "bcrypt";
-
-const createAccount = async (req, res) => {
-  const { fullname, email, dob, phone, password } = req.body;
-
- 
-  try {
-    const db = await connectToDatabase();
-    const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
-      email,
-    ]);
-    if (rows.length > 0) {
-      return res.status(409).json({ message: "user already existed" });
-    }
-    const hashPassword = await bcrypt.hash(password, 10);
-    await db.query(
-      "INSERT INTO users (fullname, email, dob, phone,  password) VALUES (?, ?, ?, ?, ?)",
-      [fullname, email, dob, phone, hashPassword]
-    );
-
-    return res.status(201).json({ message: "user created successfully" });
-  } catch (err) {
-    console.error("Signup error:", err); // ← Add this
-    return res.status(500).json(err.message);
-  }
-};
-
-export default createAccount;
-*/
-
-
 import { connectToDatabase } from "../lib/db.js"; // This should return the pool
 import bcrypt from "bcryptjs"; // Using bcryptjs as it's common for Node.js
 
 const createAccount = async (req, res) => {
-  const { fullname, email, dob, phone, password, role } = req.body; // Added 'role'
+  // NEW: Added 'department_id' to destructuring
+  const { fullname, email, dob, phone, password, role, department_id } = req.body;
 
   // Basic Input Validation
-  if (!fullname || !email || !password || !role) { // 'role' is now mandatory
+  // 'role' is already mandatory here, adding department_id as mandatory for relevant roles
+  if (!fullname || !email || !password || !role) {
     return res.status(400).json({ message: "Full name, email, password, and role are required." });
   }
-  // Optional: Add more specific validation (email format, password strength, etc.)
+
+  // --- NEW: Department Validation ---
+  let departmentIdToInsert = department_id || null; // Will be null if not provided
+
+  // If the role is Staff or DepartmentHead, department_id is required
+  if (['Staff', 'DepartmentHead'].includes(role) && !departmentIdToInsert) {
+    return res.status(400).json({ message: "Department is required for this role." });
+  }
+  // For other roles (Admin, Viewer, StockManager), department can be optional,
+  // but if provided, it should be valid.
 
   try {
     const pool = await connectToDatabase(); // Get the pool instance
 
-    // Check if user already exists
+    // Check if user with this email already exists
     const [existingUsers] = await pool.query(
       "SELECT id FROM users WHERE email = ?",
       [email]
@@ -53,6 +32,18 @@ const createAccount = async (req, res) => {
 
     if (existingUsers.length > 0) {
       return res.status(409).json({ message: "User with this email already exists." }); // 409 Conflict
+    }
+
+    // --- NEW: Validate department_id exists in the departments table ---
+    if (departmentIdToInsert) { // Only check if a department_id was provided
+      const [departments] = await pool.query(
+        "SELECT id FROM departments WHERE id = ?",
+        [departmentIdToInsert]
+      );
+      if (departments.length === 0) {
+        // If the provided department_id does not exist in the departments table
+        return res.status(400).json({ message: "Invalid department ID provided. Department does not exist." });
+      }
     }
 
     // Hash the password
@@ -63,33 +54,35 @@ const createAccount = async (req, res) => {
     const phoneValue = phone || null;
     const dobValue = dob || null; // Ensure dob is in 'YYYY-MM-DD' format if it's a DATE column
 
-    // Insert the new user with a role
-    // IMPORTANT: Ensure your 'users' table has a 'role' column.
+    // Insert the new user with role AND department_id
+    // IMPORTANT: Ensure your 'users' table has a 'department_id' column
     const [insertResult] = await pool.query(
-      "INSERT INTO users (fullname, email, password, role, dob, phone) VALUES (?, ?, ?, ?, ?, ?)",
-      [fullname, email, hashedPassword, role, dobValue, phoneValue]
+      "INSERT INTO users (fullname, email, password, role, dob, phone, department_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [fullname, email, hashedPassword, role, dobValue, phoneValue, departmentIdToInsert] // NEW: departmentIdToInsert added
     );
 
     if (insertResult.affectedRows === 1) {
-      // Optionally, you could fetch the newly created user (without password) to return it
-      // const [newUserRows] = await pool.query("SELECT id, fullname, email, role, dob, phone FROM users WHERE id = ?", [insertResult.insertId]);
       return res.status(201).json({
-        message: "User created successfully.",
-        // user: newUserRows[0] // If you decide to return the user
+        message: "User created successfully."
       });
     } else {
       // This case should ideally not be hit if the query was successful
-      console.error("Signup error: User insertion failed, affectedRows was not 1.", insertResult);
-      return res.status(500).json({ message: "Failed to create user due to an unexpected error." });
+      console.error("User creation error: Insert query affected 0 rows.", insertResult);
+      return res.status(500).json({ message: "Failed to create user due to an unexpected database issue." });
     }
 
   } catch (err) {
     console.error("Signup Controller Error:", err.message, err.stack);
-    // Check for specific database errors if needed (e.g., duplicate entry if unique constraint is on email)
+    // Check for specific database errors:
+    // ER_DUP_ENTRY: Happens if a unique constraint (like on email) is violated
     if (err.code === 'ER_DUP_ENTRY') {
-        return res.status(409).json({ message: "User with this email already exists (DB constraint)." });
+        return res.status(409).json({ message: "User with this email already exists (database constraint)." });
     }
-    return res.status(500).json({ message: "An error occurred during the signup process. Please try again." });
+    // ER_NO_REFERENCED_ROW_2 or ER_NO_REFERENCED_ROW: Foreign key constraint violation (if department_id is not NULL and doesn't exist)
+    if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_NO_REFERENCED_ROW') {
+        return res.status(400).json({ message: "The provided department does not exist. Please select a valid department." });
+    }
+    return res.status(500).json({ message: "An unexpected server error occurred during user creation. Please try again." });
   }
 };
 

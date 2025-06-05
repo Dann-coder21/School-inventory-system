@@ -7,13 +7,10 @@ import cors from "cors";
 // Import Routers
 import authRouter from "./routes/authRoutes.js";
 import itemsRouter from "./routes/itemsRoutes.js";
-import userRouter from "./routes/usersRoutes.js"; 
+import userRouter from "./routes/usersRoutes.js"; // This is your admin/user management router
 import orderRouter from "./routes/orderRoutes.js";
-// Import using a descriptive name that matches your intent
-// Note: I've named the import 'userRoleAdminRouter' for clarity.
-// The actual variable name here doesn't *have* to match 'RoleRouter' from the other file
-// as long as the 'export default' from userAdminRoutes.js is what's being imported.
-// However, using a name like 'userAdminRouter' or 'roleAdminRouter' for the import is good practice.
+// NEW: Import your department routes
+import departmentRouter from "./routes/departmentRoutes.js"; // Assuming departmentRoutes.js exports default as `router`
 
 import withdrawRouter from "./routes/withdrawRoutes.js";
 import addStockRouter from "./routes/addStockRoute.js";
@@ -24,7 +21,7 @@ import { connectToDatabase } from "./lib/db.js";
 console.log("Server starting up...");
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001; // Changed to 3001 to avoid conflict if frontend is on 3000
 
 app.use(cors());
 app.use(express.json());
@@ -41,9 +38,12 @@ app.use("/withdrawals", withdrawRouter);
 app.use("/stock", addStockRouter);
 app.use("/delete", deleteItemRouter);
 
-// Mount the User Admin / Role Management routes under the "/admin" prefix
+// Mount the User Admin / Role Management routes under the "/api/admin" prefix
 app.use("/api/admin", userRouter); 
 app.use("/api/orders", orderRouter);
+
+// NEW: Mount the Department routes under the "/api/departments" prefix
+app.use("/api/departments", departmentRouter); // Added departmentRouter here
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
