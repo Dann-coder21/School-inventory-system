@@ -12,6 +12,7 @@ import Login from "./Components/Login";
 import SignupForm from "./Components/Signup";
 import UserManagementPage from "./Components/UserManagementPage";
 import OrderHistory from "./Components/StaffOrders/OrderHistory"; // This is the order history component
+import DepartmentPage from "./pages/DepartmentPage"; // NEW: Import DepartmentPage
 
 // --- Imports for Auth and Theme Contexts ---
 import { AuthProvider, AuthContext } from "./contexts/AuthContext";
@@ -50,13 +51,9 @@ const RouteWrapper = ({ children, allowedRoles }) => {
   if (allowedRoles && !allowedRoles.includes(currentUser.role)) {
     console.warn(`Access Denied: User role '${currentUser.role}' is not allowed for this route.`);
     // Redirect unauthorized users to their appropriate dashboard based on their role
-    if (currentUser.role === 'Staff') {
+    if (currentUser.role === 'Staff' || currentUser.role === 'DepartmentHead') {
         return <Navigate to="/staffdashboard" replace />;
     } else {
-        // DepartmentHead can also see staff dashboard now
-        if (currentUser.role === 'DepartmentHead') {
-            return <Navigate to="/staffdashboard" replace />;
-        }
         return <Navigate to="/dashboard" replace />;
     }
   }
@@ -82,7 +79,7 @@ function App() {
       return <Navigate to="/login" replace />;
     }
 
-    if (currentUser.role === 'Staff' || currentUser.role === 'DepartmentHead') { // DepartmentHead now redirects to Staff Dashboard
+    if (currentUser.role === 'Staff' || currentUser.role === 'DepartmentHead') {
       return <Navigate to="/staffdashboard" replace />;
     } else {
       return <Navigate to="/dashboard" replace />;
@@ -116,10 +113,10 @@ function App() {
                 element={<RouteWrapper allowedRoles={['Staff', 'DepartmentHead']}><Layout><StaffOrderDashboard/></Layout></RouteWrapper>}
               />
               
-              {/* Inventory Listing - Staff excluded */}
+              {/* Inventory Listing - Staff AND DepartmentHead excluded */}
               <Route
                 path="/inventory"
-                element={<RouteWrapper allowedRoles={['Admin', 'DepartmentHead', 'StockManager', 'Viewer']}><Layout><Inventory /></Layout></RouteWrapper>}
+                element={<RouteWrapper allowedRoles={['Admin', 'StockManager', 'Viewer']}><Layout><Inventory /></Layout></RouteWrapper>}
               />
               {/* Add Items Form */}
               <Route
@@ -131,10 +128,10 @@ function App() {
                 path="/viewitems"
                 element={<RouteWrapper allowedRoles={['Admin', 'Staff', 'DepartmentHead', 'StockManager', 'Viewer']}><Layout><ViewItems /></Layout></RouteWrapper>}
               />
-              {/* Reports - Staff excluded */}
+              {/* Reports - Staff AND DepartmentHead excluded */}
               <Route
                 path="/reports"
-                element={<RouteWrapper allowedRoles={['Admin', 'DepartmentHead', 'StockManager', 'Viewer']}><Layout><Reports /></Layout></RouteWrapper>}
+                element={<RouteWrapper allowedRoles={['Admin', 'StockManager', 'Viewer']}><Layout><Reports /></Layout></RouteWrapper>}
               />
               {/* Settings */}
               <Route
@@ -159,14 +156,19 @@ function App() {
                 element={<RouteWrapper allowedRoles={['Admin', 'Staff', 'DepartmentHead', 'StockManager']}><Layout><OrderHistory /></Layout></RouteWrapper>}
               />
 
-              {/* Incoming Requests Page */}
+              {/* NEW: Department Page */}
+              <Route
+                path="/department-page"
+                element={<RouteWrapper allowedRoles={['Admin', 'DepartmentHead', 'StockManager']}><Layout><DepartmentPage /></Layout></RouteWrapper>}
+              />
+
+              {/* FIX: Incoming Requests Page - now only for Admin and StockManager */}
               <Route
                 path="/incoming-requests"
-                element={<RouteWrapper allowedRoles={['Admin', 'DepartmentHead', 'StockManager']}><Layout><IncomingRequestsPage /></Layout></RouteWrapper>}
+                element={<RouteWrapper allowedRoles={['Admin', 'StockManager']}><Layout><IncomingRequestsPage /></Layout></RouteWrapper>} // DepartmentHead removed
               />
 
               {/* Fallback route */}
-              {/* This fallback should also use Layout to prevent unstyled page */}
               <Route path="*" element={<RouteWrapper><Layout><Navigate to="/dashboard" replace /></Layout></RouteWrapper>} />
             </Routes>
           </OrderProvider>

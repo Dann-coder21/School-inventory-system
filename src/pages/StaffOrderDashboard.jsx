@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext, useRef, useMemo, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,7 +10,7 @@ import {
   MdSchool, MdLogout, MdWbSunny, MdModeNight, MdAccountCircle, 
   MdHelpOutline, MdShoppingCart, MdSearch, MdAddShoppingCart, 
   MdHistory, MdCancel, MdCheckCircle, MdPendingActions, MdLocalShipping,
-  MdMenu, MdClose // Added MdMenu and MdClose for header buttons
+  MdMenu, MdClose, MdThumbUp, MdThumbDown
 } from 'react-icons/md';
 import Layout from '../Components/Layout/Layout';
 
@@ -19,13 +19,13 @@ const StaffOrderDashboard = () => {
   const { currentUser, isLoadingAuth, logout: authLogout } = useAuth();
   const navigate = useNavigate();
 
-  const [items, setItems] = useState([]); // This state holds available inventory items
+  const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [cart, setCart] = useState([]); // This state holds items added to the current order
+  const [cart, setCart] = useState([]);
   const [orderHistory, setOrderHistory] = useState([]);
-  const [activeTab, setActiveTab] = useState('items'); // 'items' or 'history' or 'cart'
+  const [activeTab, setActiveTab] = useState('items');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notes, setNotes] = useState('');
@@ -33,8 +33,7 @@ const StaffOrderDashboard = () => {
   const profileButtonRef = useRef(null);
   const profileDropdownRef = useRef(null);
 
-  // SweetAlert2 theme props for consistent styling
-  const swalThemeProps = {
+  const swalThemeProps = useMemo(() => ({
     background: darkMode ? 'rgba(30, 41, 59, 0.98)' : 'rgba(255, 255, 255, 0.98)',
     color: darkMode ? '#e2e8f0' : '#1e293b',
     customClass: {
@@ -47,55 +46,52 @@ const StaffOrderDashboard = () => {
     },
     buttonsStyling: false,
     backdrop: `rgba(0,0,0,0.65)`
-  };
+  }), [darkMode]);
 
+  // Define fetchData here, wrapped in useCallback
+  const fetchData = useCallback(async () => {
+    if (!currentUser) return; // Ensure currentUser is available
 
-  // Fetch available items from inventory
-  useEffect(() => {
-    const fetchItems = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        // IMPORTANT: Confirm if this endpoint returns items suitable for staff ordering.
-        // If your backend has an endpoint specifically for "available items for staff to order", use that.
-        // For example, if it was `"/api/items/available"` before, and that was more suitable.
-        const response = await axios.get("http://localhost:3000/items/inventory", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setItems(response.data);
-      } catch (error) {
-        console.error("Failed to fetch items:", error);
-        Swal.fire({
-          ...swalThemeProps,
-          title: 'Error',
-          text: 'Failed to load available items',
-          icon: 'error',
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (!isLoadingAuth && currentUser) {
-      fetchItems();
-      fetchOrderHistory();
-    }
-    // `swalThemeProps` is a stable constant, no need to include in dependencies.
-    // If it were a mutable prop/state, it would need to be.
-  }, [isLoadingAuth, currentUser, darkMode]);
-
-  // Fetch current user's order history
-  const fetchOrderHistory = async () => {
+    setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:3000/api/orders/user/${currentUser.id}`, {
+      if (!token) {
+          console.warn("No token found, redirecting to login.");
+          navigate('/login');
+          return;
+      }
+
+      // Fetch inventory items
+      const itemsResponse = await axios.get("http://localhost:3000/items/inventory", {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setOrderHistory(response.data);
+      setItems(itemsResponse.data);
+      
+      // Fetch order history for the current user
+      const historyResponse = await axios.get(`http://localhost:3000/api/orders`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setOrderHistory(historyResponse.data);
+
     } catch (error) {
-      console.error("Failed to fetch order history:", error);
-      // Optional: Add Swal for history fetch error, but might be too noisy on every load
+      console.error("Failed to fetch data:", error);
+      Swal.fire({
+        ...swalThemeProps,
+        title: 'Error',
+        text: 'Failed to load data (items or order history).',
+        icon: 'error',
+      });
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [currentUser, navigate, swalThemeProps]); // Dependencies for useCallback
+
+  // Use useEffect to call fetchData when component mounts or dependencies change
+  useEffect(() => {
+    if (!isLoadingAuth && currentUser) {
+      fetchData();
+    }
+  }, [isLoadingAuth, currentUser, fetchData]); // fetchData is now a dependency here
 
   // Handle theme switch
   const handleThemeSwitch = () => setDarkMode(!darkMode);
@@ -103,7 +99,7 @@ const StaffOrderDashboard = () => {
   // Logout function
   const handleLogout = () => {
     Swal.fire({
-      ...swalThemeProps, // Use consistent theme props
+      ...swalThemeProps,
       title: 'Log Out?',
       text: 'Are you sure you want to end your session?',
       icon: 'warning',
@@ -132,14 +128,12 @@ const StaffOrderDashboard = () => {
 
   // Filter items based on search and category
   const filteredItems = items.filter(item => {
-    // FIX: Safely access item_name and description, provide default empty string if undefined/null
     const itemName = item.item_name || '';
     const itemDescription = item.description || '';
 
     const matchesSearch = itemName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           itemDescription.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
-    // Only show items that are currently in stock for ordering
     return matchesSearch && matchesCategory && item.quantity > 0;
   });
 
@@ -209,7 +203,7 @@ const StaffOrderDashboard = () => {
     }
     
     const cartItem = cart.find(item => item.id === itemId);
-    if (!cartItem) return; // Should not happen if item is in cart
+    if (!cartItem) return;
 
     const inventoryItem = items.find(invItem => invItem.id === itemId);
     if (!inventoryItem) {
@@ -219,7 +213,7 @@ const StaffOrderDashboard = () => {
             title: 'Item No Longer Available',
             text: `${cartItem.item_name} is no longer in inventory. Removing from cart.`,
         });
-        removeFromCart(itemId); // Remove if inventory item no longer exists
+        removeFromCart(itemId);
         return;
     }
 
@@ -231,7 +225,7 @@ const StaffOrderDashboard = () => {
             title: 'Quantity Limit',
             text: `You can only request up to ${inventoryItem.quantity} of ${cartItem.item_name}.`,
         });
-        return; // Do not update quantity if it exceeds stock
+        return;
     }
 
     setCart(cart.map(item => 
@@ -242,7 +236,7 @@ const StaffOrderDashboard = () => {
   // Calculate cart total (sum of quantities of all items in cart)
   const cartTotal = cart.reduce((total, item) => total + item.quantity, 0); 
 
-  // Submit order function with comprehensive validation
+  // Submit order function with comprehensive validation for multiple items
   const submitOrder = async () => {
     if (cart.length === 0) {
       Swal.fire({
@@ -264,7 +258,7 @@ const StaffOrderDashboard = () => {
                 title: 'Item Not Found',
                 text: `"${cartItem.item_name}" is no longer available in inventory. Please remove it from your cart.`,
             });
-            return; // Stop submission
+            return;
         }
         if (cartItem.quantity > inventoryItem.quantity) {
             Swal.fire({
@@ -273,7 +267,7 @@ const StaffOrderDashboard = () => {
                 title: 'Insufficient Stock',
                 text: `Requested quantity for "${cartItem.item_name}" (${cartItem.quantity}) exceeds available stock (${inventoryItem.quantity}). Please adjust your cart.`,
             });
-            return; // Stop submission
+            return;
         }
     }
 
@@ -286,48 +280,77 @@ const StaffOrderDashboard = () => {
 
       Swal.fire({
         ...swalThemeProps,
-        title: 'Submitting Order...',
+        title: 'Submitting Order(s)...',
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading(),
       });
 
-      const orderData = {
-        userId: currentUser.id,
-        // Backend expects an array of objects with itemId and quantity
-        items: cart.map(item => ({
-          itemId: item.id, // Ensure your backend expects 'itemId'
-          quantity: item.quantity
-        })),
-        notes
-      };
+      const requests = cart.map(item => ({
+        item_name: item.item_name,
+        requested_quantity: item.quantity,
+        notes: notes // All items in this cart share the same notes
+      }));
 
-      // Ensure this endpoint is correct for submitting new staff orders
-      const response = await axios.post('http://localhost:3000/api/orders/request', orderData, {
-        headers: { Authorization: `Bearer ${token}` }
+      // Send individual requests for each item in the cart
+      const results = await Promise.allSettled(
+        requests.map(requestData => 
+          axios.post('http://localhost:3000/api/orders/request', requestData, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        )
+      );
+
+      let successCount = 0;
+      let failedItems = [];
+
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          successCount++;
+        } else {
+          // Collect information about failed requests
+          const failedItemName = cart[index].item_name;
+          const errorMessage = result.reason?.response?.data?.message || result.reason?.message || 'Unknown error';
+          failedItems.push(`${failedItemName}: ${errorMessage}`);
+        }
       });
 
-      Swal.fire({
-        ...swalThemeProps,
-        title: 'Order Submitted!',
-        text: 'Your order has been placed successfully.',
-        icon: 'success',
-        timer: 2500,
-        showConfirmButton: false,
-      });
+      if (successCount === cart.length) {
+        Swal.fire({
+          ...swalThemeProps,
+          title: 'Order(s) Submitted!',
+          text: 'All items in your cart have been requested successfully.',
+          icon: 'success',
+          timer: 2500,
+          showConfirmButton: false,
+        });
+      } else if (successCount > 0) {
+        Swal.fire({
+          ...swalThemeProps,
+          title: 'Partial Submission',
+          html: `Successfully requested ${successCount} item(s).<br>Failed to request ${failedItems.length} item(s):<br><ul>${failedItems.map(item => `<li>${item}</li>`).join('')}</ul>`,
+          icon: 'warning',
+        });
+      } else {
+        Swal.fire({
+          ...swalThemeProps,
+          title: 'Submission Failed',
+          html: `Failed to request any items:<br><ul>${failedItems.map(item => `<li>${item}</li>`).join('')}</ul>`,
+          icon: 'error',
+        });
+      }
 
-      // Clear cart and notes after successful submission
+      // Clear cart and notes after submission attempts
       setCart([]);
       setNotes('');
-      // Refresh order history to show the newly submitted order
-      fetchOrderHistory();
-      // Switch to order history tab
+      // Refresh order history to show the newly submitted order(s)
+      fetchData(); // Call fetchData which includes history fetch
       setActiveTab('history');
     } catch (error) {
-      console.error("Failed to submit order:", error.response?.data || error.message);
+      console.error("Unexpected error during multi-item order submission:", error);
       Swal.fire({
         ...swalThemeProps,
-        title: 'Submission Failed',
-        text: error.response?.data?.message || 'Failed to submit order. Please try again.',
+        title: 'Unexpected Error',
+        text: 'An unexpected error occurred during submission. Please try again.',
         icon: 'error',
       });
     }
@@ -358,10 +381,20 @@ const StaffOrderDashboard = () => {
             allowOutsideClick: false,
             didOpen: () => Swal.showLoading(),
         });
-        // Ensure this endpoint is correct for cancelling orders
-        await axios.patch(`http://localhost:3000/api/orders/${orderId}/cancel`, {}, {
+        
+        // Correct endpoint and payload for cancelling an order
+        await axios.put(`http://localhost:3000/api/orders/${orderId}/status`, { status: 'Cancelled' }, {
           headers: { Authorization: `Bearer ${token}` }
         });
+
+        // --- IMMEDIATE UI UPDATE: Update the local state for the cancelled order ---
+        setOrderHistory(prevHistory => 
+          prevHistory.map(order => 
+            order.id === orderId ? { ...order, status: 'Cancelled' } : order
+          )
+        );
+        // --- END IMMEDIATE UI UPDATE ---
+
         Swal.fire({
             ...swalThemeProps,
             title: 'Order Cancelled!',
@@ -370,7 +403,10 @@ const StaffOrderDashboard = () => {
             timer: 2000,
             showConfirmButton: false,
         });
-        fetchOrderHistory(); // Refresh history
+        
+        // Optionally, still call fetchData to ensure full data consistency,
+        // but the UI update has already happened.
+        fetchData(); 
       } catch (error) {
         console.error("Failed to cancel order:", error.response?.data || error.message);
         Swal.fire({
@@ -384,18 +420,30 @@ const StaffOrderDashboard = () => {
   };
 
   // Get unique categories for filter
-  const categories = ['All', ...new Set(items.map(item => item.category))];
+  const categories = useMemo(() => ['All', ...new Set(items.map(item => item.category))].sort(), [items]);
 
   // Status colors for order history
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Pending': return 'bg-yellow-500/20 text-yellow-600';
-      case 'Approved': return 'bg-blue-500/20 text-blue-600';
-      case 'Processing': return 'bg-purple-500/20 text-purple-600';
-      case 'Shipped': return 'bg-green-500/20 text-green-600';
-      case 'Delivered': return 'bg-green-700/20 text-green-800';
-      case 'Cancelled': return 'bg-red-500/20 text-red-600';
-      default: return 'bg-gray-500/20 text-gray-600';
+      case 'Pending': return darkMode ? 'bg-yellow-500/20 text-yellow-300' : 'bg-yellow-100 text-yellow-700';
+      case 'DepartmentApproved': return darkMode ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700';
+      case 'Approved': return darkMode ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-700';
+      case 'Fulfilled': return darkMode ? 'bg-green-500/20 text-green-300' : 'bg-green-100 text-green-700';
+      case 'Rejected': return darkMode ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700';
+      case 'Cancelled': return darkMode ? 'bg-slate-500/20 text-slate-300' : 'bg-slate-200 text-slate-600';
+      default: return darkMode ? 'bg-slate-600 text-slate-300' : 'bg-slate-200 text-slate-600';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'Pending': return <MdPendingActions size={16} />;
+      case 'DepartmentApproved': return <MdThumbUp size={16} />; // DH Approved
+      case 'Approved': return <MdCheckCircle size={16} />;
+      case 'Fulfilled': return <MdLocalShipping size={16} />;
+      case 'Rejected': return <MdThumbDown size={16} />;
+      case 'Cancelled': return <MdCancel size={16} />;
+      default: return <MdList size={16} />;
     }
   };
 
@@ -407,7 +455,6 @@ const StaffOrderDashboard = () => {
     );
   }
 
-  // Fallback for unauthorized access (though route wrapper should handle most cases)
   if (!currentUser) {
     return (
       <Layout darkMode={darkMode}>
@@ -431,11 +478,11 @@ const StaffOrderDashboard = () => {
           <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
             Staff Order Dashboard
           </h2>
+          {/* Mobile menu toggle button */}
           <button
             className="md:hidden p-2 rounded-lg focus:outline-none focus:ring-2"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
-            {/* Using MdClose and MdMenu from import */}
             {mobileMenuOpen ? (
               <MdClose className={`text-2xl ${darkMode ? 'text-slate-300' : 'text-slate-600'}`} />
             ) : (
@@ -501,7 +548,7 @@ const StaffOrderDashboard = () => {
       </header>
 
       {/* Page Content */}
-      <main className="flex-1 p-6 pt-[104px] overflow-y-auto">
+      <main className="flex-1 p-6 pt-[104px] ml-[250px] overflow-y-auto max-w-full">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Welcome Banner */}
           <div className={`p-6 rounded-xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6
@@ -611,7 +658,7 @@ const StaffOrderDashboard = () => {
                   </div>
                 </div>
               ) : filteredItems.length === 0 ? (
-                <div className={`p-10 text-center rounded-xl shadow-lg ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'}`}>
+                <div className={`p-10 text-center rounded-xl shadow-lg ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border-slate-200'}`}>
                   <MdSearch size={48} className="mx-auto mb-4 opacity-70" />
                   <h3 className={`text-xl font-semibold ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>No items found</h3>
                   <p className={`mt-2 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -662,7 +709,7 @@ const StaffOrderDashboard = () => {
 
           {/* Cart Tab */}
           {activeTab === 'cart' && (
-            <div className={`p-6 rounded-xl shadow-lg ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'}`}>
+            <div className={`p-6 rounded-xl shadow-lg ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border-slate-200'}`}>
               <h3 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>
                 Your Order Cart
               </h3>
@@ -765,7 +812,7 @@ const StaffOrderDashboard = () => {
                         Total Items: <span className="text-indigo-500">{cartTotal}</span>
                       </div>
                       <button
-                        onClick={submitOrder} // This calls your submitOrder function
+                        onClick={submitOrder}
                         className={`px-6 py-3 rounded-md font-medium text-white transition-colors ${
                           darkMode 
                             ? 'bg-green-600 hover:bg-green-500' 
@@ -783,12 +830,16 @@ const StaffOrderDashboard = () => {
 
           {/* Order History Tab */}
           {activeTab === 'history' && (
-            <div className={`p-6 rounded-xl shadow-lg ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'}`}>
+            <div className={`p-6 rounded-xl shadow-lg ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border-slate-200'}`}>
               <h3 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>
                 Your Order History
               </h3>
               
-              {orderHistory.length === 0 ? (
+              {isLoading ? ( // Show loading state for history specifically
+                <div className="p-10 text-center">
+                  <span className={`text-xl ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Loading history...</span>
+                </div>
+              ) : orderHistory.length === 0 ? (
                 <div className="text-center py-10">
                   <MdHistory size={48} className="mx-auto mb-4 opacity-70" />
                   <p className={`${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>You haven't placed any orders yet</p>
@@ -809,9 +860,11 @@ const StaffOrderDashboard = () => {
                     <thead className={`${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
                       <tr>
                         <th className="py-3 px-4 text-left">Order #</th>
+                        <th className="py-3 px-4 text-left">Item Name</th>
+                        <th className="py-3 px-4 text-left">Quantity</th>
                         <th className="py-3 px-4 text-left">Date</th>
-                        <th className="py-3 px-4 text-left">Items</th>
                         <th className="py-3 px-4 text-left">Status</th>
+                        <th className="py-3 px-4 text-left">Last Action By</th>
                         <th className="py-3 px-4 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -822,18 +875,32 @@ const StaffOrderDashboard = () => {
                             #{order.id}
                           </td>
                           <td className={`py-3 px-4 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                            {new Date(order.createdAt).toLocaleDateString()}
+                            {order.item_name}
                           </td>
                           <td className={`py-3 px-4 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                            {order.items.length} items
+                            {order.requested_quantity}
+                          </td>
+                          <td className={`py-3 px-4 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                            {new Date(order.request_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </td>
                           <td className="py-3 px-4">
-                            <span className={`px-3 py-1 text-xs rounded-full ${getStatusColor(order.status)}`}>
-                              {order.status}
+                            <span className={`px-3 py-1 text-xs rounded-full flex items-center justify-center gap-1 ${getStatusColor(order.status)}`}>
+                              {getStatusIcon(order.status)} {order.status}
                             </span>
                           </td>
+                          <td className={`py-3 px-4 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {order.status === 'Rejected' && order.rejected_by_name
+                                ? `${order.rejected_by_name} (${order.rejected_by_role})`
+                                : order.status === 'Fulfilled' && order.fulfilled_by_name
+                                    ? `${order.fulfilled_by_name} (${order.fulfilled_by_role})`
+                                    : (order.status === 'Approved' || order.status === 'DepartmentApproved') && order.approved_by_name
+                                        ? `${order.approved_by_name} (${order.approved_by_role})`
+                                        : 'N/A'
+                            }
+                          </td>
                           <td className="py-3 px-4 text-right">
-                            {order.status === 'Pending' && (
+                            {/* Staff can cancel if the order is not yet Approved, Rejected, Fulfilled, or already Cancelled */}
+                            {!(order.status === 'Approved' || order.status === 'Rejected' || order.status === 'Fulfilled' || order.status === 'Cancelled') && (
                               <button
                                 onClick={() => cancelOrder(order.id)}
                                 className={`px-3 py-1 text-xs rounded-md ${
@@ -859,5 +926,4 @@ const StaffOrderDashboard = () => {
     </Layout>
   );
 };
-
 export default StaffOrderDashboard;

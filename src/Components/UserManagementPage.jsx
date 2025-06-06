@@ -67,7 +67,6 @@ const UserManagementPage = () => {
   const [allUsers, setAllUsers] = useState([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
 
-  // NEW: State for departments
   const [departments, setDepartments] = useState([]);
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(true);
 
@@ -78,7 +77,6 @@ const UserManagementPage = () => {
 
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // Updated state for "Add New User" form to include department_id
   const [newUser, setNewUser] = useState({
     fullname: '',
     email: '',
@@ -86,7 +84,7 @@ const UserManagementPage = () => {
     role: 'Staff',
     phone: '',
     dob: '',
-    department_id: '' // NEW: Department ID for new user
+    department_id: ''
   });
   const [showAddPassword, setShowAddPassword] = useState(false);
   const [addPasswordStrength, setAddPasswordStrength] = useState({ strength: 0, message: '', color: 'gray' });
@@ -112,13 +110,12 @@ const UserManagementPage = () => {
         setIsLoadingDepartments(false);
         return;
       }
-      const response = await axios.get(`${API_BASE_URL}/api/departments`, { // Adjust endpoint as needed
+      const response = await axios.get(`${API_BASE_URL}/api/departments`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       setDepartments(response.data);
-      // If there's only one department, pre-select it for new user
       if (response.data.length > 0 && newUser.department_id === '') {
           setNewUser(prev => ({ ...prev, department_id: response.data[0].id }));
       }
@@ -132,7 +129,7 @@ const UserManagementPage = () => {
     } finally {
       setIsLoadingDepartments(false);
     }
-  }, [newUser.department_id]); // Added newUser.department_id to dependencies to avoid loop in initial set
+  }, [newUser.department_id]);
 
   // --- Fetch Users ---
   const fetchUsers = useCallback(async () => {
@@ -150,6 +147,12 @@ const UserManagementPage = () => {
         },
       });
       setAllUsers(response.data);
+      // --- IMPORTANT: Pagination Reset after fetch ---
+      setCurrentPage(prev => {
+        const newTotalPages = Math.ceil(response.data.length / usersPerPage);
+        return prev > newTotalPages ? Math.max(1, newTotalPages) : prev;
+      });
+      // --- END IMPORTANT ---
     } catch (error) {
       console.error("Failed to fetch users:", error);
       const errorMsg = error.response?.data?.message || error.message || "Could not load user data.";
@@ -161,11 +164,11 @@ const UserManagementPage = () => {
     } finally {
       setIsLoadingUsers(false);
     }
-  }, []);
+  }, [usersPerPage]); // Added usersPerPage to dependencies
 
   useEffect(() => {
     if (!isLoadingAuth && currentUser && currentUser.role === 'Admin') {
-      fetchDepartments(); // Fetch departments when admin is authenticated
+      fetchDepartments();
       fetchUsers();
     } else if (!isLoadingAuth && (!currentUser || currentUser.role !== 'Admin')) {
       setIsLoadingUsers(false);
@@ -199,12 +202,12 @@ const UserManagementPage = () => {
         user.fullname.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (user.department_name && user.department_name.toLowerCase().includes(searchTerm.toLowerCase())) // NEW: Search by department
+        (user.department_name && user.department_name.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
     tempUsers.sort((a, b) => {
-      const aValue = String(a[sortBy] || '').toLowerCase(); // Use || '' to handle undefined/null
+      const aValue = String(a[sortBy] || '').toLowerCase();
       const bValue = String(b[sortBy] || '').toLowerCase();
 
       if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
@@ -256,7 +259,6 @@ const UserManagementPage = () => {
     } else if (name === 'fullname') {
         currentErrors.fullname = "";
     }
-    // No specific validation needed for department_id beyond selection
     setAddValidationErrors(currentErrors);
   };
 
@@ -273,7 +275,7 @@ const UserManagementPage = () => {
       const phoneValidation = validatePhone(newUser.phone);
       if (!phoneValidation.isValid) errors.phone = phoneValidation.message;
     }
-    if (!newUser.department_id) { // NEW: Validate department selection
+    if (!newUser.department_id) {
         errors.department_id = "Department is required.";
     }
 
@@ -288,21 +290,19 @@ const UserManagementPage = () => {
       if (!token) { Swal.fire('Error', 'Authentication token not found. Please log in.', 'error'); return; }
 
       const userPayload = { ...newUser };
-      // Ensure DOB is sent as a string (YYYY-MM-DD) or null
       userPayload.dob = newUser.dob || null;
 
       await axios.post(`${API_BASE_URL}/api/admin/adduser`, userPayload, { headers: { 'Authorization': `Bearer ${token}` } });
 
       Swal.fire('Success!', 'User added successfully!', 'success');
       setShowAddForm(false);
-      // Reset form state, pre-selecting first department if available
       setNewUser({
           fullname: '', email: '', password: '', role: 'Staff', phone: '', dob: '',
           department_id: departments.length > 0 ? departments[0].id : ''
       });
       setAddPasswordStrength({ strength: 0, message: '', color: 'gray' });
       setAddValidationErrors({});
-      fetchUsers(); // Refresh list
+      fetchUsers();
     } catch (error) {
       Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to add user due to a server error.', 'error');
     }
@@ -313,13 +313,12 @@ const UserManagementPage = () => {
       return 'border-red-500 focus:border-red-500 focus:ring-red-500';
     }
     const fieldValue = newUser[fieldName];
-    // Only green if value exists AND no error, and for password, if strong
     if (fieldValue && !addValidationErrors[fieldName]) {
         if (fieldName === 'email' && validateEmail(fieldValue).isValid) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
         if (fieldName === 'phone' && validatePhone(fieldValue).isValid) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
         if (fieldName === 'password' && addPasswordStrength.strength >= 4) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
         if (fieldName === 'fullname' && fieldValue.trim()) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
-        if (fieldName === 'department_id' && fieldValue) return 'border-green-500 focus:border-green-500 focus:ring-green-500'; // NEW: Department validation class
+        if (fieldName === 'department_id' && fieldValue) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
     }
     return '';
   };
@@ -327,9 +326,7 @@ const UserManagementPage = () => {
 
   // --- HANDLERS FOR INLINE EDITING ---
   const handleEditUser = (user) => {
-    // Set the user currently being edited. Initialize newPassword as empty.
-    // Ensure department_id is passed for editing
-    setEditingUser({ ...user, newPassword: '', department_id: user.department_id || '' }); // NEW: department_id initialized
+    setEditingUser({ ...user, newPassword: '', department_id: user.department_id || '' });
     setShowEditPassword(false);
     setEditPasswordStrength({ strength: 0, message: '', color: 'gray' });
     setEditValidationErrors({});
@@ -356,7 +353,6 @@ const UserManagementPage = () => {
     } else if (name === 'fullname') {
         currentErrors.fullname = "";
     }
-    // No specific validation needed for department_id beyond selection
     setEditValidationErrors(currentErrors);
   };
 
@@ -377,7 +373,7 @@ const UserManagementPage = () => {
       const phoneValidation = validatePhone(editingUser.phone);
       if (!phoneValidation.isValid) errors.phone = phoneValidation.message;
     }
-    if (!editingUser.department_id && (editingUser.role === 'Staff' || editingUser.role === 'DepartmentHead')) { // NEW: Validate department for relevant roles
+    if (!editingUser.department_id && (editingUser.role === 'Staff' || editingUser.role === 'DepartmentHead')) {
         errors.department_id = "Department is required for this role.";
     } else if (editingUser.department_id && Object.values(departments).some(d => d.id === editingUser.department_id) === false) {
         errors.department_id = "Invalid department selected.";
@@ -398,10 +394,9 @@ const UserManagementPage = () => {
         email: editingUser.email,
         role: editingUser.role,
         phone: editingUser.phone,
-        // Ensure DOB is sent as a string (YYYY-MM-DD) or null
         dob: editingUser.dob ? editingUser.dob.substring(0, 10) : null,
         status: editingUser.status,
-        department_id: editingUser.department_id || null // NEW: Include department_id in payload
+        department_id: editingUser.department_id || null
       };
 
       if (editingUser.newPassword) {
@@ -427,49 +422,115 @@ const UserManagementPage = () => {
     setEditPasswordStrength({ strength: 0, message: '', color: 'gray' });
   };
 
+  // --- ENABLED DELETE USER FUNCTION ---
   const handleDeleteUser = async (userId, username) => {
-    setActiveActionMenuId(null);
-    const result = await Swal.fire({
-      title: 'Are you sure?',
-      text: `This will permanently delete user "${username}". You won't be able to revert this!`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Yes, delete it!'
-    });
+    setActiveActionMenuId(null); // Close action menu first
+    try {
+      const result = await Swal.fire({
+        title: 'Are you sure?',
+        text: `Delete user "${username}"? This action can be undone by restoring the user (if soft deleted).`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, delete it!'
+      });
 
-    if (result.isConfirmed) {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) throw new Error('Authentication token not found.');
+      if (!result.isConfirmed) return; // If cancelled, do nothing
 
-        await axios.delete(`${API_BASE_URL}/api/admin/users/${userId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        await fetchUsers();
-        Swal.fire('Deleted!', 'User has been deleted.', 'success');
-      } catch (error) {
-        Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to delete user.', 'error');
+      // Show loading state while deleting
+      Swal.fire({
+        title: 'Deleting User',
+        text: 'Please wait...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+
+      const token = localStorage.getItem('token');
+      if (!token) { throw new Error('Authentication token not found.'); }
+
+      await axios.delete(`${API_BASE_URL}/api/admin/users/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Refresh user list after successful deletion.
+      // fetchUsers will automatically re-filter soft-deleted users.
+      await fetchUsers();
+      
+      Swal.fire({
+        title: 'Deleted!',
+        text: `User "${username}" has been deleted (soft-deleted).`,
+        icon: 'success',
+        timer: 2000,
+        timerProgressBar: true
+      });
+
+    } catch (error) {
+      console.error('Delete user error:', error);
+      
+      let errorMessage = 'Failed to delete user due to an unknown error.';
+      
+      if (error.response) {
+        switch (error.response.status) {
+          case 403:
+            errorMessage = error.response.data?.message || "You don't have permission to delete this user.";
+            break;
+          case 404:
+            errorMessage = error.response.data?.message || "User not found.";
+            break;
+          case 409: // Conflict, e.g., if hard delete was attempted and foreign key constraint failed
+            errorMessage = error.response.data?.message || "User has associated records that prevent deletion.";
+            break;
+          case 500:
+            errorMessage = error.response.data?.message || "Server error occurred while deleting user.";
+            break;
+          default:
+            errorMessage = `An unexpected error occurred (Status: ${error.response.status}).`;
+        }
+      } else if (error.request) {
+          errorMessage = "Network error: Could not connect to the server.";
+      } else {
+          errorMessage = error.message;
       }
+
+      Swal.fire({
+        title: 'Error',
+        text: errorMessage,
+        icon: 'error'
+      });
     }
   };
+  // --- END ENABLED DELETE USER FUNCTION ---
 
+  // --- NEW: Optimistic Update for User Status Toggle ---
   const handleToggleUserStatus = async (user) => {
     setActiveActionMenuId(null);
-    const newStatus = !user.status;
+    const newStatus = !user.status; // Determine the new status (true for Active, false for Inactive)
+    const originalStatus = user.status; // Store original status for rollback
+
+    const actionText = newStatus ? 'ACTIVATE' : 'DEACTIVATE';
 
     const result = await Swal.fire({
       title: 'Confirm Action',
-      text: `Are you sure you want to ${newStatus ? 'ACTIVATE' : 'DEACTIVATE'} user "${user.fullname}"?`,
+      text: `Are you sure you want to ${actionText} user "${user.fullname}"?`,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonColor: newStatus ? '#28a745' : '#dc3545',
+      confirmButtonColor: newStatus ? '#28a745' : '#dc3545', // Green for Activate, Red for Deactivate
       cancelButtonColor: '#6c757d',
-      confirmButtonText: newStatus ? 'Yes, Activate' : 'Yes, Deactivate'
+      confirmButtonText: `Yes, ${actionText}`
     });
 
     if (result.isConfirmed) {
+      // Optimistic UI Update: Update the local state immediately
+      setAllUsers(prevUsers => 
+        prevUsers.map(u => 
+          u.id === user.id ? { ...u, status: newStatus } : u
+        )
+      );
+
       try {
         const token = localStorage.getItem('token');
         if (!token) throw new Error('Authentication token not found.');
@@ -478,13 +539,23 @@ const UserManagementPage = () => {
           { status: newStatus },
           { headers: { 'Authorization': `Bearer ${token}` } }
         );
+        
         Swal.fire('Success', `User ${user.fullname} has been ${newStatus ? 'activated' : 'deactivated'}.`, 'success');
-        fetchUsers();
+        // No need to call fetchUsers() here, as optimistic update handles it.
+        // If there's a need for a full data refresh, it can be added back,
+        // but it would overwrite the optimistic update briefly.
       } catch (error) {
+        // Rollback UI if API call fails
+        setAllUsers(prevUsers => 
+          prevUsers.map(u => 
+            u.id === user.id ? { ...u, status: originalStatus } : u
+          )
+        );
         Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to update user status.', 'error');
       }
     }
   };
+  // --- END Optimistic Update for User Status Toggle ---
 
   const handleForcePasswordReset = async (userId, username) => {
     setActiveActionMenuId(null);
@@ -536,7 +607,7 @@ const UserManagementPage = () => {
         if (fieldName === 'email' && validateEmail(fieldValue).isValid) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
         if (fieldName === 'phone' && validatePhone(fieldValue).isValid) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
         if (fieldName === 'fullname' && fieldValue.trim()) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
-        if (fieldName === 'department_id' && fieldValue) return 'border-green-500 focus:border-green-500 focus:ring-green-500'; // NEW: Department validation class
+        if (fieldName === 'department_id' && fieldValue) return 'border-green-500 focus:border-green-500 focus:ring-green-500';
     }
     return '';
   };
@@ -770,7 +841,7 @@ const UserManagementPage = () => {
                         setShowAddForm(false);
                         setNewUser({
                             fullname: '', email: '', password: '', role: 'Staff', phone: '', dob: '',
-                            department_id: departments.length > 0 ? departments[0].id : '' // Reset to first dept or empty
+                            department_id: departments.length > 0 ? departments[0].id : ''
                         });
                         setAddValidationErrors({});
                         setAddPasswordStrength({ strength: 0, message: '', color: 'gray' });
@@ -797,7 +868,7 @@ const UserManagementPage = () => {
               <input
                 id="search"
                 type="text"
-                placeholder="Search by name, email, role, or department..." // NEW: Updated placeholder
+                placeholder="Search by name, email, role, or department..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className={`${inputBaseClass} text-sm`}
@@ -837,14 +908,14 @@ const UserManagementPage = () => {
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className={`${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                    <thead className={`${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'} text-xs uppercase tracking-wider`}>
                       <tr>
                         {/* Sortable Headers */}
                         {[
                           { key: 'fullname', label: 'Full Name' },
                           { key: 'email', label: 'Email', hiddenClass: 'hidden sm:table-cell' },
                           { key: 'role', label: 'Role' },
-                          { key: 'department_name', label: 'Department', hiddenClass: 'hidden sm:table-cell' }, // NEW: Department column header
+                          { key: 'department_name', label: 'Department', hiddenClass: 'hidden sm:table-cell' },
                           { key: 'status', label: 'Status' },
                           { key: 'phone', label: 'Phone', hiddenClass: 'hidden md:table-cell' },
                           { key: 'dob', label: 'DOB', hiddenClass: 'hidden lg:table-cell' },
@@ -936,7 +1007,7 @@ const UserManagementPage = () => {
                               </span>
                             )}
                           </td>
-                          {/* NEW: Department Cell */}
+                          {/* Department Cell */}
                           <td className={`py-3 px-4 hidden sm:table-cell ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                             {editingUser?.id === user.id ? (
                               <>
@@ -949,7 +1020,7 @@ const UserManagementPage = () => {
                                 ) : (
                                     <select
                                         name="department_id"
-                                        value={editingUser.department_id || ''} // Use empty string for unselected
+                                        value={editingUser.department_id || ''}
                                         onChange={handleEditChange}
                                         className={`${inputBaseClass} text-xs p-1 w-full sm:w-auto ${getEditValidationClass('department_id')}`}
                                     >
@@ -966,34 +1037,17 @@ const UserManagementPage = () => {
                                 )}
                               </>
                             ) : (
-                              user.department_name || 'N/A' // Display department name
+                              user.department_name || 'N/A'
                             )}
                           </td>
                           {/* Status Cell */}
                           <td className="py-3 px-4">
-                              {editingUser?.id === user.id ? (
-                                  <div className="flex items-center">
-                                      <label htmlFor={`status-toggle-${user.id}`} className="sr-only">Toggle status for {user.fullname}</label>
-                                      <input
-                                          type="checkbox"
-                                          id={`status-toggle-${user.id}`}
-                                          checked={editingUser.status}
-                                          onChange={(e) => setEditingUser(prev => ({ ...prev, status: e.target.checked }))}
-                                          className="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                          disabled={String(currentUser.id) === String(user.id)}
-                                      />
-                                      <span className={`text-xs font-semibold ${editingUser.status ? (darkMode ? 'text-green-300' : 'text-green-700') : (darkMode ? 'text-red-300' : 'text-red-700')}`}>
-                                          {editingUser.status ? 'Active' : 'Inactive'}
-                                      </span>
-                                  </div>
-                              ) : (
-                                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                      user.status ? (darkMode ? 'bg-green-500/30 text-green-300' : 'bg-green-100 text-green-700')
-                                                  : (darkMode ? 'bg-red-500/30 text-red-300' : 'bg-red-100 text-red-700')
-                                  }`}>
-                                      {user.status ? 'Active' : 'Inactive'}
-                                  </span>
-                              )}
+                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                  user.status ? (darkMode ? 'bg-green-500/30 text-green-300' : 'bg-green-100 text-green-700')
+                                              : (darkMode ? 'bg-red-500/30 text-red-300' : 'bg-red-100 text-red-700')
+                              }`}>
+                                  {user.status ? 'Active' : 'Inactive'}
+                              </span>
                           </td>
                           {/* Phone Cell */}
                           <td className={`py-3 px-4 hidden md:table-cell ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -1125,7 +1179,7 @@ const UserManagementPage = () => {
                                           <MdEdit className="text-base"/> Edit Details
                                         </button>
                                         <button
-                                          onClick={() => handleToggleUserStatus(user)}
+                                          onClick={() => handleToggleUserStatus(user)} // This function is called here
                                           className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-2.5 transition-colors
                                                       ${user.status
                                                           ? (darkMode ? 'text-red-400 hover:bg-red-600 hover:text-white' : 'text-red-600 hover:bg-red-100 hover:text-red-700')
@@ -1145,10 +1199,12 @@ const UserManagementPage = () => {
                                           <MdLockReset className="text-base"/> Reset Password
                                         </button>
                                         <div className={`my-1.5 h-px ${darkMode ? 'bg-slate-600' : 'bg-slate-200'}`}></div>
+                                        {/* Delete button: Enabled by default, then conditionally disabled */}
                                         <button
                                           onClick={() => handleDeleteUser(user.id, user.fullname)}
                                           className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-2.5 transition-colors
                                                       ${darkMode ? 'text-red-400 hover:bg-red-600 hover:text-white' : 'text-red-600 hover:bg-red-100 hover:text-red-700'}`}
+                                          // Disable deletion of self or other Admins (as per backend logic)
                                           disabled={String(currentUser.id) === String(user.id) || user.role === 'Admin'}
                                         >
                                           <MdDelete className="text-base"/> Delete

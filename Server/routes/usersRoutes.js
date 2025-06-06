@@ -2,8 +2,8 @@
 
 import express from "express";
 import { connectToDatabase, getDbConnection } from "../lib/db.js";
-import bcrypt from "bcryptjs"; // Ensure this is bcryptjs
-import jwt from "jsonwebtoken"; // Used by verifyToken
+import bcrypt from "bcryptjs"; // Make sure you are consistently using bcryptjs or bcrypt
+import jwt from "jsonwebtoken";
 
 const userRouter = express.Router();
 
@@ -19,7 +19,7 @@ const verifyToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_KEY);
     req.userId = decoded.id;
     req.userRole = decoded.role;
-    req.userFullname = decoded.fullname; // Add if you need this for logging/auditing
+    req.userFullname = decoded.fullname;
     // req.userEmail = decoded.email; // Add if you need this
     // req.userDepartmentId = decoded.department_id; // Add if you need this
     // req.userDepartmentName = decoded.department_name; // Add if you need this
@@ -34,17 +34,14 @@ const verifyToken = async (req, res, next) => {
 
 // Middleware: Check if User is Admin
 const isAdmin = async (req, res, next) => {
-  // Use req.userRole if you are confident it's always up-to-date
   if (req.userRole === 'Admin') {
     return next();
   }
-
-  // Fallback to DB check for critical operations or if roles can change mid-session
   try {
     const pool = await connectToDatabase();
     const [rows] = await pool.query(
       "SELECT role FROM users WHERE id = ?",
-      [req.userId] // Check role of the currently authenticated user
+      [req.userId]
     );
     
     if (rows.length === 0 || rows[0].role !== 'Admin') {
@@ -57,18 +54,15 @@ const isAdmin = async (req, res, next) => {
   }
 };
 
-// --- NEW/MODIFIED: addAdminUser function (formerly createAccount from auth.js) ---
 const addAdminUser = async (req, res) => {
   const { fullname, email, dob, phone, password, role, department_id } = req.body;
 
-  // Basic Input Validation
   if (!fullname || !email || !password || !role) {
     return res.status(400).json({ message: "Full name, email, password, and role are required." });
   }
 
   let departmentIdToInsert = department_id || null;
 
-  // If the role is 'Staff' or 'DepartmentHead', `department_id` is mandatory
   if (['Staff', 'DepartmentHead'].includes(role) && !departmentIdToInsert) {
     return res.status(400).json({ message: "Department is required for this role." });
   }
@@ -85,7 +79,6 @@ const addAdminUser = async (req, res) => {
       return res.status(409).json({ message: "User with this email already exists." });
     }
 
-    // Validate that the provided department_id actually exists
     if (departmentIdToInsert) {
       const [departments] = await pool.query(
         "SELECT id FROM departments WHERE id = ?",
@@ -102,8 +95,7 @@ const addAdminUser = async (req, res) => {
     const phoneValue = phone || null;
     const dobValue = dob || null;
 
-    // Default status to active (1) for new users created by admin
-    const defaultStatus = 1; // Assuming 1 for active, 0 for inactive
+    const defaultStatus = 1;
 
     const [insertResult] = await pool.query(
       "INSERT INTO users (fullname, email, password, role, dob, phone, department_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -129,11 +121,10 @@ const addAdminUser = async (req, res) => {
   }
 };
 
-// Route: Get all users (Admin only)
+// Route: Get all users (Admin only) - EXCLUDES SOFT-DELETED USERS
 userRouter.get("/users", verifyToken, isAdmin, async (req, res) => {
   try {
     const pool = await connectToDatabase();
-    // Use LEFT JOIN to include department_name
     const [users] = await pool.query(
       `SELECT
          u.id, u.fullname, u.email, u.role, u.phone, u.dob, u.status, u.department_id,
@@ -142,14 +133,15 @@ userRouter.get("/users", verifyToken, isAdmin, async (req, res) => {
          users u
        LEFT JOIN
          departments d ON u.department_id = d.id
+       WHERE
+         u.deleted_at IS NULL
        ORDER BY u.fullname ASC`
     );
 
-    // Sanitize DOB for consistent format, ensure status is boolean
     const formattedUsers = users.map(user => ({
       ...user,
-      dob: user.dob ? new Date(user.dob).toISOString().split('T')[0] : null, // Ensures YYYY-MM-DD format
-      status: user.status === 1 ? true : false // Convert tinyint(1) to boolean
+      dob: user.dob ? new Date(user.dob).toISOString().split('T')[0] : null,
+      status: user.status === 1 ? true : false
     }));
     
     res.status(200).json(formattedUsers);
@@ -173,7 +165,7 @@ userRouter.put("/users/:id", verifyToken, isAdmin, async (req, res) => {
 
   let connection;
   try {
-    connection = await getDbConnection(); // For manual connection management and transaction
+    connection = await getDbConnection();
     await connection.beginTransaction();
 
     const [userToUpdateRows] = await connection.query(
@@ -187,7 +179,6 @@ userRouter.put("/users/:id", verifyToken, isAdmin, async (req, res) => {
     }
     const currentUserData = userToUpdateRows[0];
 
-    // Check for email conflict if email is being changed
     if (email && email !== currentUserData.email) {
       const [emailCheck] = await connection.query(
         "SELECT id FROM users WHERE email = ? AND id != ?",
@@ -199,13 +190,12 @@ userRouter.put("/users/:id", verifyToken, isAdmin, async (req, res) => {
       }
     }
 
-    // --- NEW: Department Validation for Update ---
     let departmentIdToUpdate = department_id === undefined ? currentUserData.department_id : (department_id || null);
     if (['Staff', 'DepartmentHead'].includes(role) && !departmentIdToUpdate) {
         await connection.rollback();
         return res.status(400).json({ message: "Department is required for this role." });
     }
-    if (departmentIdToUpdate) { // If a department is selected, ensure it's valid
+    if (departmentIdToUpdate) {
       const [departments] = await connection.query(
         "SELECT id FROM departments WHERE id = ?",
         [departmentIdToUpdate]
@@ -219,23 +209,18 @@ userRouter.put("/users/:id", verifyToken, isAdmin, async (req, res) => {
     let querySetters = [];
     let queryValues = [];
 
-    // Fields that are explicitly provided in req.body will update
     if (fullname !== undefined && fullname !== currentUserData.fullname) { querySetters.push("fullname = ?"); queryValues.push(fullname); }
     if (email !== undefined && email !== currentUserData.email) { querySetters.push("email = ?"); queryValues.push(email); }
     if (role !== undefined && role !== currentUserData.role) { querySetters.push("role = ?"); queryValues.push(role); }
     if (phone !== undefined && phone !== currentUserData.phone) { querySetters.push("phone = ?"); queryValues.push(phone || null); }
-    if (dob !== undefined) { querySetters.push("dob = ?"); queryValues.push(dob || null); } // Handle null for dob
-    if (status !== undefined && status !== currentUserData.status) { querySetters.push("status = ?"); queryValues.push(status ? 1 : 0); } // Convert boolean to tinyint
+    if (dob !== undefined) { querySetters.push("dob = ?"); queryValues.push(dob || null); }
+    if (status !== undefined && status !== currentUserData.status) { querySetters.push("status = ?"); queryValues.push(status ? 1 : 0); }
     
-    // Always include department_id in update if it's set in payload or was previously set
-    // Ensure this reflects how the UI sends department_id (empty string vs null vs actual ID)
-    // Assuming frontend sends '' for clear, or a valid ID
-    if (department_id !== undefined) { // If frontend sends department_id
+    if (department_id !== undefined) {
         querySetters.push("department_id = ?");
         queryValues.push(department_id || null);
     }
 
-    // Password is handled separately
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
       querySetters.push("password = ?");
@@ -243,18 +228,17 @@ userRouter.put("/users/:id", verifyToken, isAdmin, async (req, res) => {
     }
 
     if (querySetters.length === 0) {
-        await connection.rollback(); // Or commit if no change is not an error
+        await connection.rollback();
         return res.status(200).json({ message: "No changes applied to user.", user: currentUserData });
     }
 
-    queryValues.push(targetUserId); // For the WHERE id = ?
+    queryValues.push(targetUserId);
 
     await connection.query(
       `UPDATE users SET ${querySetters.join(", ")} WHERE id = ?`,
       queryValues
     );
 
-    // Fetch the updated user with department name
     const [updatedUserRows] = await connection.query(
       `SELECT
          u.id, u.fullname, u.email, u.role, u.phone, u.dob, u.status, u.department_id,
@@ -269,7 +253,6 @@ userRouter.put("/users/:id", verifyToken, isAdmin, async (req, res) => {
 
     await connection.commit();
     
-    // Convert status to boolean for frontend consistency
     const updatedUser = {
       ...updatedUserRows[0],
       status: updatedUserRows[0].status === 1 ? true : false
@@ -294,7 +277,7 @@ userRouter.put("/users/:id", verifyToken, isAdmin, async (req, res) => {
   }
 });
 
-// Route: Delete user (Admin only)
+// Route: Delete user (Admin only) - PERFORMS A SOFT DELETE
 userRouter.delete("/users/:id", verifyToken, isAdmin, async (req, res) => {
   const targetUserId = req.params.id;
   const adminUserId = req.userId;
@@ -318,20 +301,19 @@ userRouter.delete("/users/:id", verifyToken, isAdmin, async (req, res) => {
       return res.status(404).json({ message: "User not found." });
     }
     
-    // Prevent deletion of other Admin users by an Admin
     if (userToDeleteRows[0].role === 'Admin') {
       await connection.rollback();
       return res.status(403).json({ message: "Cannot delete other Admin users." });
     }
     
-    await connection.query("DELETE FROM users WHERE id = ?", [targetUserId]);
+    await connection.query("UPDATE users SET deleted_at = NOW() WHERE id = ?", [targetUserId]);
     await connection.commit();
 
-    res.status(200).json({ message: "User deleted successfully." });
+    res.status(200).json({ message: "User deleted successfully (soft-deleted)." });
 
   } catch (err) {
     if (connection) await connection.rollback();
-    console.error(`DELETE /users/${targetUserId} Error (userRouter):`, err.message, err.stack);
+    console.error(`DELETE /users/${targetUserId} Error:`, err.message, err.stack);
     res.status(500).json({ message: "Error deleting user." });
   } finally {
     if (connection) {
@@ -343,7 +325,7 @@ userRouter.delete("/users/:id", verifyToken, isAdmin, async (req, res) => {
 // Route: Toggle user status (Admin only)
 userRouter.put("/users/:id/status", verifyToken, isAdmin, async (req, res) => {
     const targetUserId = req.params.id;
-    const { status } = req.body; // Expecting status: true/false from frontend
+    const { status } = req.body;
 
     if (status === undefined || typeof status !== 'boolean') {
         return res.status(400).json({ message: "Status (boolean) is required." });
@@ -357,7 +339,7 @@ userRouter.put("/users/:id/status", verifyToken, isAdmin, async (req, res) => {
         const pool = await connectToDatabase();
         const [result] = await pool.query(
             "UPDATE users SET status = ? WHERE id = ?",
-            [status ? 1 : 0, targetUserId] // Convert boolean to tinyint(1)
+            [status ? 1 : 0, targetUserId]
         );
 
         if (result.affectedRows === 0) {
@@ -370,7 +352,7 @@ userRouter.put("/users/:id/status", verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// Route: Reset user password (Admin only)
+// Route: Reset user password (Admin only) - SETS DEFAULT TO "Kenya2030"
 userRouter.put("/users/:id/reset-password", verifyToken, isAdmin, async (req, res) => {
     const targetUserId = req.params.id;
 
@@ -380,8 +362,8 @@ userRouter.put("/users/:id/reset-password", verifyToken, isAdmin, async (req, re
 
     try {
         const pool = await connectToDatabase();
-        // Generate a simple temporary password. In a real app, you might email a reset link instead.
-        const tempPassword = Math.random().toString(36).slice(-8); // 8 random chars/nums
+        // *** FIX: Hardcoded temporary password to "Kenya2030" as requested ***
+        const tempPassword = "Kenya2030"; // Set the desired default password
         const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
         const [result] = await pool.query(

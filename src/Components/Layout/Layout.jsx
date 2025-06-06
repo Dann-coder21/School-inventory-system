@@ -6,7 +6,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   MdDashboard, MdInventory, MdAddBox, MdList, MdAssessment, MdSettings, MdSchool,
   MdPeople, MdShoppingCart, MdAssignmentTurnedIn,
-  MdHistory // Import MdHistory icon for Order History
+  MdHistory, // Import MdHistory icon for Order History
+  MdApartment // Import MdApartment icon for Department Page
 } from 'react-icons/md';
 
 const Layout = ({ children }) => {
@@ -42,16 +43,23 @@ const Layout = ({ children }) => {
     return currentUser && allowedAllOrdersRoles.includes(currentUser.role);
   }, [currentUser, allowedAllOrdersRoles]);
 
-  // NEW: Define who sees the "Order History" link
   const allowedOrderHistoryRoles = useMemo(() => ['Admin', 'Staff', 'DepartmentHead', 'StockManager'], []);
   const showOrderHistoryLink = useMemo(() => {
     return currentUser && allowedOrderHistoryRoles.includes(currentUser.role);
   }, [currentUser, allowedOrderHistoryRoles]);
 
-  const allowedIncomingRoles = useMemo(() => ['Admin', 'DepartmentHead', 'StockManager'], []);
+  // FIX: Removed DepartmentHead from allowedIncomingRoles
+  const allowedIncomingRoles = useMemo(() => ['Admin', 'StockManager'], []); // DepartmentHead removed
   const showIncomingRequestsLink = useMemo(() => {
     return currentUser && allowedIncomingRoles.includes(currentUser.role);
   }, [currentUser, allowedIncomingRoles]);
+
+  const showDepartmentPageLink = useMemo(() => {
+    return currentUser && currentUser.role === 'DepartmentHead' && currentUser.department_id;
+  }, [currentUser]);
+
+  // Roles that are allowed to see Inventory and Reports
+  const allowedInventoryReportsRoles = useMemo(() => ['Admin', 'StockManager', 'Viewer'], []);
 
   if (isLoadingAuth) {
     return (
@@ -73,42 +81,43 @@ const Layout = ({ children }) => {
         </div>
         <nav className="flex-grow pt-5">
            
-          {dashboardNavLink} {/* Renders "Dashboard" or "My Dashboard" based on role */}
+          {dashboardNavLink}
           
-          {/* Conditional rendering for "Inventory" - Staff excluded */}
-          {(currentUser?.role !== 'Staff') && (
+          {/* Conditional rendering for "Inventory" - Staff AND DepartmentHead excluded */}
+          {currentUser && allowedInventoryReportsRoles.includes(currentUser.role) && (
             <NavLink to="/inventory" className={sidebarLinkClass}><MdInventory className="text-xl" /> Inventory</NavLink>
           )}
 
-          {/* Conditional rendering for "Add Items" - only for Admin and StockManager */}
           {(currentUser?.role === 'Admin' || currentUser?.role === 'StockManager') && (
             <NavLink to="/additemsform" className={sidebarLinkClass}><MdAddBox className="text-xl" /> Add Items</NavLink>
           )}
 
           <NavLink to="/viewitems" className={sidebarLinkClass}><MdList className="text-xl" /> View Items</NavLink>
           
-          {/* Conditional rendering for "Reports" - Staff excluded */}
-          {(currentUser?.role !== 'Staff') && (
+          {showAllOrdersLink && (
+              <NavLink to="/orders" className={sidebarLinkClass}><MdShoppingCart className="text-xl" /> All Item Requests</NavLink>
+          )}
+
+          {showOrderHistoryLink && (
+            <NavLink to="/orderhistory" className={sidebarLinkClass}><MdHistory className="text-xl" /> Order History</NavLink>
+          )}
+          
+          {showDepartmentPageLink && (
+            <NavLink to="/department-page" className={sidebarLinkClass}><MdApartment className="text-xl" /> My Department</NavLink>
+          )}
+
+          {/* FIX: Incoming Requests Link - now only for Admin and StockManager */}
+          {showIncomingRequestsLink && (
+            <NavLink to="/incoming-requests" className={sidebarLinkClass}><MdAssignmentTurnedIn className="text-xl" /> Incoming Requests</NavLink>
+          )}
+
+           {/* Conditional rendering for "Reports" - Staff AND DepartmentHead excluded */}
+          {currentUser && allowedInventoryReportsRoles.includes(currentUser.role) && (
             <NavLink to="/reports" className={sidebarLinkClass}><MdAssessment className="text-xl" /> Reports</NavLink>
           )}
 
           {currentUser?.role === 'Admin' && (
             <NavLink to="/admin/users" className={sidebarLinkClass}><MdPeople className="text-xl" /> User Management</NavLink>
-          )}
-
-          {/* "All Item Requests" link - visible to Staff as well as managers */}
-          {showAllOrdersLink && (
-              <NavLink to="/orders" className={sidebarLinkClass}><MdShoppingCart className="text-xl" /> All Item Requests</NavLink>
-          )}
-
-          {/* NEW: "Order History" link - visible to authorized roles */}
-          {showOrderHistoryLink && (
-            <NavLink to="/orderhistory" className={sidebarLinkClass}><MdHistory className="text-xl" /> Order History</NavLink>
-          )}
-          
-          {/* "Incoming Requests" link - visible to specific managers */}
-          {showIncomingRequestsLink && (
-            <NavLink to="/incoming-requests" className={sidebarLinkClass}><MdAssignmentTurnedIn className="text-xl" /> Incoming Requests</NavLink>
           )}
 
           <NavLink to="/settings" className={sidebarLinkClass}><MdSettings className="text-xl" /> Settings</NavLink>
