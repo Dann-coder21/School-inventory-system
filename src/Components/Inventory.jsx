@@ -1,6 +1,6 @@
 import React, { useContext, useState, useEffect, useMemo, useRef } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { InventoryContext } from "../contexts/InventoryContext";
+import { InventoryContext } from "../contexts/InventoryContext"; // Make sure this path is correct if not already fixed
 import { ThemeContext } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
 import axios from "axios";
@@ -14,9 +14,21 @@ import {
   MdDashboard, MdInventory, MdAddBox, MdList, MdAssessment, MdSettings, MdSchool,
   MdSearch, MdMoreVert, MdDeleteOutline, MdArrowUpward, MdArrowDownward, MdClose,
   MdOutlineInventory2, MdSystemUpdateAlt, MdAddCircleOutline, MdWarningAmber,
-  MdPeople, MdInfoOutline, MdEdit, MdSave, MdCancel,
-  MdShoppingCart // Make sure this icon is imported
+  MdPeople, MdInfoOutline, MdEdit, MdSave, MdCancel, MdError, // Added MdError for validation messages
+  MdShoppingCart
 } from "react-icons/md";
+
+
+// --- RECTIFIED CODE STARTS HERE ---
+
+// Define the API_BASE_URL using Vite's environment variable syntax.
+// This ensures that in production (on Vercel), it uses your deployed backend URL,
+// and in local development, it defaults to your local backend URL.
+// IMPORTANT: Adjust "http://localhost:3000" if your local backend runs on a different port.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
+// --- RECTIFIED CODE ENDS HERE ---
+
 
 // --- VALIDATION HELPER FUNCTIONS for Inventory Items (unchanged) ---
 const validateItemName = (name) => {
@@ -36,7 +48,7 @@ const validateLocation = (location) => {
 
 const validateNonNegativeNumber = (value, fieldName) => {
     const num = Number(value);
-    if (value === '' || value === null) return { isValid: true, message: '' };
+    if (value === '' || value === null) return { isValid: true, message: '' }; // Allow empty for initial state, handle required separately
     if (isNaN(num)) return { isValid: false, message: `${fieldName} must be a number.` };
     if (num < 0) return { isValid: false, message: `${fieldName} cannot be negative.` };
     return { isValid: true, message: '' };
@@ -47,18 +59,14 @@ const formatKESCurrency = (value) => {
   return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(value);
 };
 
-// --- DELETE ITEM MODAL COMPONENT (unchanged) ---
+// --- DELETE ITEM MODAL COMPONENT (unchanged, just added MdError import for getEditValidationClass) ---
 const DeleteItemModal = ({ item, onConfirm, onCancel, darkMode }) => {
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 print:hidden animate-fadeIn">
             <div className={`relative w-full max-w-md p-6 sm:p-7 rounded-xl shadow-2xl ${darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900'} animate-scaleUp`}>
-                <button onClick={onCancel} className={`absolute top-3.5 right-3.5 p-1.5 rounded-full transition-colors ${darkMode ? 'text-slate-400 hover:bg-slate-700 hover:text-slate-100' : 'text-slate-500 hover:bg-slate-200 hover:text-slate-700'}`}>
-                    <MdClose size={22}/>
-                </button>
+                <button onClick={onCancel} className={`absolute top-3.5 right-3.5 p-1.5 rounded-full transition-colors ${darkMode ? 'text-slate-400 hover:bg-slate-700 hover:text-slate-100' : 'text-slate-500 hover:bg-slate-200 hover:text-slate-700'}`}><MdClose size={22}/></button>
                 <div className="flex items-center mb-5 sm:mb-6">
-                    <div className={`p-3 rounded-full mr-4 ${darkMode ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-600'}`}>
-                        <MdDeleteOutline size={24}/>
-                    </div>
+                    <div className={`p-3 rounded-full mr-4 ${darkMode ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-600'}`}><MdDeleteOutline size={24}/></div>
                     <div>
                         <h3 className="text-lg sm:text-xl font-semibold">Confirm Deletion</h3>
                         <p className={`text-xs sm:text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>You are about to delete an item.</p>
@@ -91,7 +99,9 @@ function Inventory() {
     if (editValidationErrors[fieldName]) {
       return 'border-red-500 focus:border-red-500 focus:ring-red-500';
     }
+    // Check if the field is not empty AND there are no errors for it, then it's valid/green
     if (editingItem?.[fieldName] !== undefined && editingItem?.[fieldName] !== null &&
+       String(editingItem[fieldName]).trim() !== '' && // Check if value is not empty string
        !editValidationErrors[fieldName] &&
        (fieldName === 'item_name' || fieldName === 'category' || fieldName === 'location' ||
         (fieldName === 'quantity' && validateNonNegativeNumber(editingItem.quantity, 'Quantity').isValid) ||
@@ -286,9 +296,11 @@ function Inventory() {
       const token = localStorage.getItem("token");
       if (!token) throw new Error("Authentication token not found.");
 
-      await axios.delete(`http://localhost:3000/delete/items/${itemForDeleteModal.id}`, {
+      // --- RECTIFIED: Use API_BASE_URL for DELETE request ---
+      await axios.delete(`${API_BASE_URL}/delete/items/${itemForDeleteModal.id}`, { // <-- CHANGED
         headers: { Authorization: `Bearer ${token}` },
       });
+      // --- END RECTIFIED ---
 
       setItems(prevItems => prevItems.filter(i => i.id !== itemForDeleteModal.id));
 
@@ -340,8 +352,9 @@ function Inventory() {
         showConfirmButton: false
       });
 
+      // --- RECTIFIED: Use API_BASE_URL for POST request ---
       const response = await axios.post(
-        "http://localhost:3000/withdrawals/withdraw",
+        `${API_BASE_URL}/withdrawals/withdraw`, // <-- CHANGED
         {
           item_id: item.id,
           quantity: withdrawQuantity,
@@ -349,6 +362,7 @@ function Inventory() {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      // --- END RECTIFIED ---
 
     const { updatedItem } = response.data || {};
       if (!updatedItem) {
@@ -419,11 +433,13 @@ function Inventory() {
         showConfirmButton: false
       });
 
+      // --- RECTIFIED: Use API_BASE_URL for PUT request ---
       const response = await axios.put(
-        `http://localhost:3000/stock/${item.id}/add-stock`,
+        `${API_BASE_URL}/stock/${item.id}/add-stock`, // <-- CHANGED
         { quantity: quantityToAdd },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      // --- END RECTIFIED ---
 
       setItems(prevItems => prevItems.map(i => i.id === response.data.updatedItem.id ? response.data.updatedItem : i));
       setAddStockInfo(prev => ({ ...prev, [item.id]: '' }));
@@ -499,10 +515,12 @@ function Inventory() {
         cost_price: Number(editingItem.cost_price),
       };
 
-      const response = await axios.put(`http://localhost:3000/items/${itemId}`,
+      // --- RECTIFIED: Use API_BASE_URL for PUT request ---
+      const response = await axios.put(`${API_BASE_URL}/items/${itemId}`, // <-- CHANGED
         updatePayload,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
+      // --- END RECTIFIED ---
 
       setItems(prevItems => prevItems.map(i => i.id === response.data.updatedItem.id ? response.data.updatedItem : i));
 
@@ -538,7 +556,6 @@ function Inventory() {
   return (
   <Layout>
 
-    
 
       {/* Main Content Area */}
       <div className={`flex-1 flex flex-col ml-[250px] min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>

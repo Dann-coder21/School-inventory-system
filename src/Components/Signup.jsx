@@ -5,6 +5,17 @@ import Swal from 'sweetalert2'; // For notifications
 import bgImage from "../assets/school inventory image.png"; // Ensure this path is correct
 import { Eye, EyeOff, User, Mail, CalendarDays, Phone, LogIn, UserPlus, Lock } from "lucide-react"; // Added more icons
 
+// --- RECTIFIED CODE STARTS HERE ---
+
+// Define the API_BASE_URL using Vite's environment variable syntax.
+// This ensures that in production (on Vercel), it uses your deployed backend URL,
+// and in local development, it defaults to your local backend URL.
+// IMPORTANT: Adjust "http://localhost:3000" if your local backend runs on a different port.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
+// --- RECTIFIED CODE ENDS HERE ---
+
+
 // It's good practice to define input fields array outside the component
 // if it doesn't depend on component's state or props that change frequently.
 const formFieldsConfig = [
@@ -53,10 +64,12 @@ const SignupForm = () => {
 
     setIsLoading(true);
     try {
+      // --- RECTIFIED: Use API_BASE_URL for the POST request ---
       const response = await axios.post(
-        "http://localhost:3000/auth/signup", // Ensure this is your correct API endpoint
+        `${API_BASE_URL}/auth/signup`, // <-- CHANGED THIS LINE
         values
       );
+      // --- END RECTIFIED ---
       if (response.status === 201) {
         await Swal.fire({
           title: 'Account Created!',
@@ -126,10 +139,10 @@ const SignupForm = () => {
                     onChange={handleChanges}
                     // required // Using Swal for validation feedback instead
                     className={`
-                      ${IconComponent && isEmpty ? 'pl-10' : 'pl-3'} 
-                      pr-3 py-2.5 block w-full rounded-lg border border-gray-300 shadow-sm 
-                      focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 
-                      transition-all duration-150 ease-in-out sm:text-sm 
+                      ${IconComponent && isEmpty ? 'pl-10' : 'pl-3'}
+                      pr-3 py-2.5 block w-full rounded-lg border border-gray-300 shadow-sm
+                      focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50
+                      transition-all duration-150 ease-in-out sm:text-sm
                       disabled:opacity-70 disabled:bg-gray-100
                       ${type === 'date' && !values[name] ? 'text-gray-400' : ''} // Style empty date input like a placeholder
                     `}
@@ -163,9 +176,9 @@ const SignupForm = () => {
                 // required
                 className={`
                   ${values.password.trim() === "" ? 'pl-10' : 'pl-3'}
-                  pr-10 py-2.5 block w-full rounded-lg border border-gray-300 shadow-sm 
-                  focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 
-                  transition-all duration-150 ease-in-out sm:text-sm 
+                  pr-10 py-2.5 block w-full rounded-lg border border-gray-300 shadow-sm
+                  focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50
+                  transition-all duration-150 ease-in-out sm:text-sm
                   disabled:opacity-70 disabled:bg-gray-100
                 `}
                 disabled={isLoading}
@@ -186,9 +199,9 @@ const SignupForm = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg py-2.5 px-4 font-semibold transition-all duration-150 ease-in-out 
+            className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg py-2.5 px-4 font-semibold transition-all duration-150 ease-in-out
                         hover:from-indigo-700 hover:to-purple-700 hover:shadow-lg
-                        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 
+                        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500
                         active:scale-[0.98]
                         disabled:opacity-60 disabled:cursor-not-allowed`}
           >
