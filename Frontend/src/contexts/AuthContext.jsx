@@ -3,7 +3,18 @@ import React, { createContext, useState, useEffect, useContext, useCallback, use
 import { jwtDecode } from 'jwt-decode';
 import axios from 'axios';
 
-const API_BASE_URL = "http://localhost:3000";
+// --- RECTIFIED CODE STARTS HERE ---
+
+// Define the API_BASE_URL using Vite's environment variable syntax.
+// This ensures that:
+// - In production (on Vercel), it uses your deployed backend URL (e.g., https://inventory-server.fly.dev).
+// - In local development, it defaults to your local backend URL (e.g., http://localhost:3000).
+// IMPORTANT: Adjust "http://localhost:3000" if your local backend runs on a different port.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
+// --- RECTIFIED CODE ENDS HERE ---
+
+
 export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -37,11 +48,13 @@ export function AuthProvider({ children }) {
 
       // Fetch full user details from the backend to validate token and get fresh data
       // Ensure this endpoint is correct (e.g., /auth/me or /api/auth/me)
-      const response = await axios.get(`${API_BASE_URL}/auth/me`, {
+      // --- RECTIFIED: Use API_BASE_URL for GET request ---
+      const response = await axios.get(`${API_BASE_URL}/auth/me`, { // <-- CHANGED
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
+      // --- END RECTIFIED ---
 
       const userData = response.data; // Expects { id, fullname, email, role }
 
@@ -64,7 +77,7 @@ export function AuthProvider({ children }) {
       logout(); // Log out on any API error during token validation
       return null;
     }
-  }, [logout]);
+  }, [logout]); // fetchAndSetCurrentUser depends on logout
 
   // Load auth state on initial app load and token changes
   useEffect(() => {
@@ -91,10 +104,6 @@ export function AuthProvider({ children }) {
       }
     };
     initializeAuth();
-    // No dependencies here because fetchAndSetCurrentUser and logout are already useCallback
-    // which ensures they are stable. This effect runs only once on mount.
-    // If you needed it to react to `authToken` changing, you'd add `authToken` here,
-    // but the `login` and `fetchAndSetCurrentUser` functions handle state updates directly.
   }, [fetchAndSetCurrentUser]); // Keeping fetchAndSetCurrentUser here is good practice as it's a callback
 
   // Login function - this is the one the Login component should call
@@ -102,17 +111,16 @@ export function AuthProvider({ children }) {
     setIsLoadingAuth(true);
     try {
       // Ensure this matches your backend login endpoint, e.g., /auth/login or /api/auth/login
-      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+      // --- RECTIFIED: Use API_BASE_URL for POST request ---
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, { // <-- CHANGED
         email,
         password,
       });
+      // --- END RECTIFIED ---
 
       if (response.data?.token) {
-        // After successful login, token is received. Now fetch full user details
-        // using the token, which also updates currentUser and authToken states.
         const user = await fetchAndSetCurrentUser(response.data.token);
         if (!user) {
-          // If fetchAndSetCurrentUser didn't return a user (e.g., token invalid or user not found)
           throw new Error("Login failed: Could not retrieve user data after token acquisition.");
         }
         return user; // Return the user object for the component that called login
@@ -121,9 +129,7 @@ export function AuthProvider({ children }) {
       }
     } catch (error) {
       console.error("AuthContext: Login failed:", error);
-      // Ensure logout on any failure during the login process
       logout();
-      // Re-throw specific error messages for Login component to display
       let errorMessage = "An unknown error occurred during login.";
       if (error.response) {
         if (error.response.status === 401) {
@@ -134,7 +140,7 @@ export function AuthProvider({ children }) {
           errorMessage = error.response.data?.message || `Server error: ${error.response.status}`;
         }
       } else if (error.message === "Network Error") {
-        errorMessage = "Network Error: Could not connect to the server.";
+        errorMessage = "Network Error: Could not connect to the server. Please check your internet connection or try again later."; // More user-friendly
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -163,15 +169,14 @@ export function AuthProvider({ children }) {
   }, [fetchAndSetCurrentUser, logout]);
 
   // Consolidate `isAuthenticated` logic.
-  // It's authenticated if currentUser and authToken are present and not loading.
   const isAuthenticated = useMemo(() => !!currentUser && !!authToken && !isLoadingAuth, [currentUser, authToken, isLoadingAuth]);
 
   const value = {
     currentUser,
     authToken,
-    isAuthenticated, // This derived value is more reliable
+    isAuthenticated,
     isLoadingAuth,
-    login, // Provide the login function
+    login,
     logout,
     refreshUserData,
   };
