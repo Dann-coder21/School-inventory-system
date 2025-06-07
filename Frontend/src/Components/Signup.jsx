@@ -5,16 +5,8 @@ import Swal from 'sweetalert2'; // For notifications
 import bgImage from "../assets/school inventory image.png"; // Ensure this path is correct
 import { Eye, EyeOff, User, Mail, CalendarDays, Phone, LogIn, UserPlus, Lock } from "lucide-react"; // Added more icons
 
-// --- RECTIFIED CODE STARTS HERE ---
-
 // Define the API_BASE_URL using Vite's environment variable syntax.
-// This ensures that in production (on Vercel), it uses your deployed backend URL,
-// and in local development, it defaults to your local backend URL.
-// IMPORTANT: Adjust "http://localhost:3000" if your local backend runs on a different port.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
-
-// --- RECTIFIED CODE ENDS HERE ---
-
 
 // It's good practice to define input fields array outside the component
 // if it doesn't depend on component's state or props that change frequently.
@@ -32,6 +24,11 @@ const SignupForm = () => {
     dob: "",
     phone: "",
     password: "",
+    // --- RECTIFIED: Add the 'role' field with a default value ---
+    // Choose a default role that makes sense for new users
+    // e.g., 'Staff', 'User', 'Viewer'.
+    // If 'Viewer' is too restrictive, 'Staff' might be a common default.
+    role: "Staff", // <-- ADDED THIS LINE with your desired default role
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -50,10 +47,12 @@ const SignupForm = () => {
     e.preventDefault();
     // Basic validation (can be expanded)
     for (const key in values) {
-      if (values[key].trim() === "") {
+      // Exclude 'role' from this specific empty field check if it's always default
+      // Or ensure 'role' is always set and doesn't trigger this warning
+      if (key !== 'role' && values[key].trim() === "") { // <-- MODIFIED this line
         Swal.fire({
           title: 'Missing Information',
-          text: `Please fill in the ${key.replace(/([A-Z])/g, ' $1').toLowerCase()} field.`, // Make field name more readable
+          text: `Please fill in the ${key.replace(/([A-Z])/g, ' $1').toLowerCase()} field.`,
           icon: 'warning',
           confirmButtonColor: '#f59e0b',
         });
@@ -64,12 +63,10 @@ const SignupForm = () => {
 
     setIsLoading(true);
     try {
-      // --- RECTIFIED: Use API_BASE_URL for the POST request ---
       const response = await axios.post(
-        `${API_BASE_URL}/auth/signup`, // <-- CHANGED THIS LINE
-        values
+        `${API_BASE_URL}/auth/signup`,
+        values // `values` now includes the 'role' field
       );
-      // --- END RECTIFIED ---
       if (response.status === 201) {
         await Swal.fire({
           title: 'Account Created!',
@@ -89,7 +86,7 @@ const SignupForm = () => {
         if (err.response.status === 409) { // Example: Conflict, user already exists
             text = err.response.data.error || 'An account with this email or phone already exists.';
         } else {
-            text = err.response.data.error || text;
+            text = err.response.data.message || err.response.data.error || text; // Prioritize `message` if backend sends it
         }
       }
       Swal.fire({
@@ -134,22 +131,21 @@ const SignupForm = () => {
                     type={type}
                     id={name}
                     name={name}
-                    placeholder={type === 'date' ? '' : placeholder} // Date input handles its own placeholder
+                    placeholder={type === 'date' ? '' : placeholder}
                     value={values[name]}
                     onChange={handleChanges}
-                    // required // Using Swal for validation feedback instead
                     className={`
                       ${IconComponent && isEmpty ? 'pl-10' : 'pl-3'}
                       pr-3 py-2.5 block w-full rounded-lg border border-gray-300 shadow-sm
                       focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50
                       transition-all duration-150 ease-in-out sm:text-sm
                       disabled:opacity-70 disabled:bg-gray-100
-                      ${type === 'date' && !values[name] ? 'text-gray-400' : ''} // Style empty date input like a placeholder
+                      ${type === 'date' && !values[name] ? 'text-gray-400' : ''}
                     `}
                     disabled={isLoading}
-                    onFocus={(e) => { if (type === 'date') e.target.type = 'date'; }} // Ensure type is date on focus
-                    onBlur={(e) => { if (type === 'date' && !e.target.value) e.target.type = 'text'; }} // Revert to text if empty to show placeholder text
-                    {...(type === 'date' && !values[name] && {type: 'text', placeholder: "Select Date of Birth"})} // Trick for date placeholder
+                    onFocus={(e) => { if (type === 'date') e.target.type = 'date'; }}
+                    onBlur={(e) => { if (type === 'date' && !e.target.value) e.target.type = 'text'; }}
+                    {...(type === 'date' && !values[name] && {type: 'text', placeholder: "Select Date of Birth"})}
                   />
                 </div>
               </div>
@@ -173,7 +169,6 @@ const SignupForm = () => {
                 placeholder="Create a strong password"
                 value={values.password}
                 onChange={handleChanges}
-                // required
                 className={`
                   ${values.password.trim() === "" ? 'pl-10' : 'pl-3'}
                   pr-10 py-2.5 block w-full rounded-lg border border-gray-300 shadow-sm
@@ -215,7 +210,7 @@ const SignupForm = () => {
               </>
             ) : (
               <>
-                <UserPlus size={18} /> {/* Or other suitable icon like UserPlus */}
+                <UserPlus size={18} />
                 Sign Up
               </>
             )}
@@ -224,7 +219,7 @@ const SignupForm = () => {
           <div className="text-sm text-center text-gray-600 pt-2">
             Already have an account?{" "}
             <a
-              href="/login" // Or use React Router <Link to="/login">
+              href="/login"
               className="text-indigo-600 font-medium hover:text-indigo-500 hover:underline"
             >
               Login here
