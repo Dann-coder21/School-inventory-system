@@ -11,8 +11,19 @@ import Layout from '../Components/Layout/Layout'; // Import Layout component
 // Icons for page content
 import {
   MdAssignmentTurnedIn, MdArrowUpward, MdArrowDownward, MdArrowForward, MdInfoOutline, MdWarningAmber,
-  MdInfo, MdCheckCircle, MdError, MdThumbUp, MdThumbDown, MdClose, MdMoreVert // Added MdMoreVert
+  MdInfo, MdCheckCircle, MdError, MdThumbUp, MdThumbDown, MdClose, MdMoreVert
 } from 'react-icons/md';
+
+
+// --- RECTIFIED CODE STARTS HERE ---
+
+// Define the API_BASE_URL using Vite's environment variable syntax.
+// This ensures that in production (on Vercel), it uses your deployed backend URL,
+// and in local development, it defaults to your local backend URL.
+// IMPORTANT: Adjust "http://localhost:3000" if your local backend runs on a different port.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
+// --- RECTIFIED CODE ENDS HERE ---
 
 
 const formatTimeAgo = (dateString) => {
@@ -40,9 +51,13 @@ const formatFullDate = (dateString) => {
 };
 
 function IncomingRequestsPage() {
+
+  // Define getEditValidationClass HERE, inside the Inventory component (if it was copied in this file, likely from Inventory.jsx)
+  // Removed as it seems misplaced here, belongs in Inventory.jsx or common validation utility.
+
   const { darkMode } = useContext(ThemeContext);
   const { currentUser, isLoadingAuth } = useAuth();
-  const { orders, loadingOrders, ordersError, fetchOrders } = useOrders();
+  const { orders, loadingOrders, ordersError, fetchOrders } = useOrders(); // Assuming useOrders fetches from backend
   const navigate = useNavigate();
 
   const [sortConfig, setSortConfig] = useState({ key: 'request_date', direction: 'descending' });
@@ -140,7 +155,7 @@ function IncomingRequestsPage() {
   const handleUpdateStatus = async (order, newStatus) => {
     setActiveActionMenuId(null); // Close kebab menu immediately
     if (!canApproveRejectFulfill) return;
-    
+
     let titleText = ''; let confirmText = ''; let inputOptions = {}; let showInput = false; let icon = 'info';
     switch (newStatus) {
       case 'Approved':
@@ -251,7 +266,11 @@ function IncomingRequestsPage() {
       try {
         const token = localStorage.getItem('token');
         if (!token) throw new Error('No authentication token found.');
-        const response = await axios.put(`http://localhost:3000/api/orders/${order.id}/status`, payload, { headers: { Authorization: `Bearer ${token}` } });
+
+        // --- RECTIFIED: Use API_BASE_URL for PUT request ---
+        const response = await axios.put(`${API_BASE_URL}/api/orders/${order.id}/status`, payload, { headers: { Authorization: `Bearer ${token}` } }); // <-- CHANGED
+        // --- END RECTIFIED ---
+
         if (response.status === 200) { Swal.fire('Success', `Request ${newStatus}!`, 'success'); fetchOrders(); }
         else { throw new Error(response.data.message || 'Failed to update request.'); }
       } catch (err) { console.error("Error updating request status:", err); Swal.fire('Error', err.response?.data?.message || err.message || 'Failed to update request.', 'error'); }
@@ -453,7 +472,7 @@ function IncomingRequestsPage() {
                                                 </button>
                                             )}
                                             {/* Separator only if there are actions before */}
-                                            { ( (currentUser.role === 'Admin') || (currentUser.role === 'StockManager' && order.status === 'DepartmentApproved') ) &&
+                                            { ( (currentUser.role === 'Admin') || (currentUser.role === 'StockManager' && (order.status === 'Approved' || order.status === 'DepartmentApproved')) ) &&
                                               <div className={`my-1.5 h-px ${darkMode ? 'bg-slate-600' : 'bg-slate-200'}`}></div>
                                             }
                                             <button
@@ -500,7 +519,7 @@ function IncomingRequestsPage() {
               <p><strong>Status:</strong> <span className={`font-semibold ${getStatusClass(viewingOrderDetails.status)}`}>{viewingOrderDetails.status}</span></p>
               <p><strong>Requested On:</strong> {formatFullDate(viewingOrderDetails.request_date)}</p>
               {viewingOrderDetails.response_date && <p><strong>Last Action On:</strong> {formatFullDate(viewingOrderDetails.response_date)}</p>}
-              
+
               {/* Approval/Rejection/Fulfillment details with roles */}
               {viewingOrderDetails.approved_by_name && viewingOrderDetails.approved_by_role === 'DepartmentHead' && (
                 <p><strong>Department Approved By:</strong> {viewingOrderDetails.approved_by_name} ({viewingOrderDetails.approved_by_role})</p>
@@ -517,7 +536,7 @@ function IncomingRequestsPage() {
 
               {viewingOrderDetails.notes && <p><strong>Requester Notes:</strong> {viewingOrderDetails.notes}</p>}
               {viewingOrderDetails.admin_notes && <p><strong>Admin Notes:</strong> {viewingOrderDetails.admin_notes}</p>}
-              
+
               {/* Highlight rejection reason */}
               {viewingOrderDetails.status === 'Rejected' && viewingOrderDetails.rejection_reason && (
                 <div className={`mt-4 p-3 rounded-md border ${darkMode ? 'bg-red-900/30 border-red-700 text-red-300' : 'bg-red-50 border-red-200 text-red-800'}`}>
