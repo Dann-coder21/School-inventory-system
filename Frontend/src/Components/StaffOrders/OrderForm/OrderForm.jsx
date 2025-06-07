@@ -6,6 +6,9 @@ import { MdAddShoppingCart, MdError, MdCheckCircle } from 'react-icons/md';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
 const OrderForm = ({ onOrderSubmitted }) => {
   const { darkMode } = useContext(ThemeContext);
   const { items, loading: itemsLoading, error: itemsError } = useContext(InventoryContext);
@@ -130,7 +133,7 @@ const OrderForm = ({ onOrderSubmitted }) => {
         color: darkMode ? '#e2e8f0' : '#1e293b',
       });
 
-      const response = await axios.post('http://localhost:3000/api/orders/request', {
+      const response = await axios.post('${API_BASE_URL}/api/orders/request', {
         item_name: selectedItemObj.item_name, // Backend expects item_name
         requested_quantity: Number(formData.requestedQuantity),
         notes: formData.notes,

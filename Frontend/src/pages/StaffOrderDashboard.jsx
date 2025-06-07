@@ -14,6 +14,8 @@ import {
 } from 'react-icons/md';
 import Layout from '../Components/Layout/Layout';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
 const StaffOrderDashboard = () => {
   const { darkMode, setDarkMode } = useContext(ThemeContext);
   const { currentUser, isLoadingAuth, logout: authLogout } = useAuth();
@@ -62,13 +64,13 @@ const StaffOrderDashboard = () => {
       }
 
       // Fetch inventory items
-      const itemsResponse = await axios.get("http://localhost:3000/items/inventory", {
+      const itemsResponse = await axios.get(`${API_BASE_URL}/items/inventory`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setItems(itemsResponse.data);
       
       // Fetch order history for the current user
-      const historyResponse = await axios.get(`http://localhost:3000/api/orders`, {
+      const historyResponse = await axios.get("${API_BASE_URL}/api/orders", {
         headers: { Authorization: `Bearer ${token}` }
       });
       setOrderHistory(historyResponse.data);
@@ -294,7 +296,7 @@ const StaffOrderDashboard = () => {
       // Send individual requests for each item in the cart
       const results = await Promise.allSettled(
         requests.map(requestData => 
-          axios.post('http://localhost:3000/api/orders/request', requestData, {
+          axios.post('${API_BASE_URL}/api/orders/request', requestData, {
             headers: { Authorization: `Bearer ${token}` }
           })
         )
@@ -383,7 +385,7 @@ const StaffOrderDashboard = () => {
         });
         
         // Correct endpoint and payload for cancelling an order
-        await axios.put(`http://localhost:3000/api/orders/${orderId}/status`, { status: 'Cancelled' }, {
+        await axios.put(`${API_BASE_URL}/api/orders/${orderId}/status`, { status: 'Cancelled' }, {
           headers: { Authorization: `Bearer ${token}` }
         });
 

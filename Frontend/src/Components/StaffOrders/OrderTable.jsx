@@ -1,12 +1,23 @@
 // src/components/StaffOrders/OrderTable/OrderTable.jsx
-import React, { useContext, useEffect, useState, useMemo } from 'react';
+import React, { useContext, useEffect, useState, useMemo, useRef } from 'react'; // Added useRef
 import { ThemeContext } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrders } from '../../contexts/OrderContext'; // Use OrderContext for fetching orders
 import LoadingSpinner from '../LoadingSpinner';
-import { MdHistory, MdFilterList, MdSort, MdCheckCircleOutline, MdClose, MdInfoOutline, MdWarningAmber, MdArrowDownward } from 'react-icons/md';
+import { MdHistory, MdFilterList, MdSort, MdCheckCircleOutline, MdClose, MdInfoOutline, MdWarningAmber, MdArrowDownward, MdArrowUpward } from 'react-icons/md'; // Added MdArrowUpward for sorting
 import Swal from 'sweetalert2';
 import axios from 'axios';
+
+// --- RECTIFIED CODE STARTS HERE ---
+
+// Define the API_BASE_URL using Vite's environment variable syntax.
+// This ensures that in production (on Vercel), it uses your deployed backend URL,
+// and in local development, it defaults to your local backend URL.
+// IMPORTANT: Adjust "http://localhost:3000" if your local backend runs on a different port.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
+// --- RECTIFIED CODE ENDS HERE ---
+
 
 // Helper for time ago (copy from Dashboard)
 const formatTimeAgo = (dateString) => {
@@ -212,9 +223,11 @@ const OrderTable = () => {
           admin_notes: adminNotes,
         };
 
-        const response = await axios.put(`http://localhost:3000/api/orders/${order.id}/status`, payload, {
+        // --- RECTIFIED: Use API_BASE_URL for PUT request ---
+        const response = await axios.put(`${API_BASE_URL}/api/orders/${order.id}/status`, payload, { // <-- CHANGED
           headers: { Authorization: `Bearer ${token}` }
         });
+        // --- END RECTIFIED ---
 
         if (response.status === 200) {
             Swal.fire('Success', `Request ${newStatus}!`, 'success');
@@ -358,7 +371,7 @@ const OrderTable = () => {
                           </button>
                         ) : (
                           <span className={`text-xs ${darkMode ? 'text-slate-500' : 'text-slate-500'}`}>
-                              {order.status === 'Fulfilled' ? `Fulfilled (${order.fulfilled_quantity}/${order.requested_quantity})` : 'No Action'}
+                              {order.status === 'Fulfilled' ? `Fulfilled (${order.fulfilled_quantity || 0}/${order.requested_quantity})` : 'No Action'} {/* Added || 0 for fulfilled_quantity */}
                           </span>
                         )}
                       </td>
