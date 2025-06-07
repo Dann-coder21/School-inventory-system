@@ -3,17 +3,19 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Swal from 'sweetalert2'; // For notifications
 import bgImage from "../assets/school inventory image.png"; // Ensure this path is correct
-import { Eye, EyeOff, User, Mail, CalendarDays, Phone, LogIn, UserPlus, Lock } from "lucide-react"; // Added more icons
+import { Eye, EyeOff, User, Mail, CalendarDays, Phone, LogIn, UserPlus, Lock, Building2 } from "lucide-react"; // Added Building2 icon for department
+
 
 // Define the API_BASE_URL using Vite's environment variable syntax.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
 
 // It's good practice to define input fields array outside the component
 // if it doesn't depend on component's state or props that change frequently.
 const formFieldsConfig = [
   { label: "Full Name", type: "text", name: "fullname", placeholder: "Enter your full name", icon: User },
   { label: "Email Address", type: "email", name: "email", placeholder: "you@example.com", icon: Mail },
-  { label: "Date of Birth", type: "date", name: "dob", placeholder: "", icon: CalendarDays }, // Placeholder for date is often ignored by browser
+  { label: "Date of Birth", type: "date", name: "dob", placeholder: "", icon: CalendarDays },
   { label: "Phone Number", type: "tel", name: "phone", placeholder: "Enter your phone number", icon: Phone },
 ];
 
@@ -24,11 +26,9 @@ const SignupForm = () => {
     dob: "",
     phone: "",
     password: "",
-    // --- RECTIFIED: Add the 'role' field with a default value ---
-    // Choose a default role that makes sense for new users
-    // e.g., 'Staff', 'User', 'Viewer'.
-    // If 'Viewer' is too restrictive, 'Staff' might be a common default.
-    role: "Staff", // <-- ADDED THIS LINE with your desired default role
+    role: "Staff", // Default role as previously discussed
+    // --- RECTIFIED: Add department_id to the state ---
+    department_id: "", // Initialize as empty string
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -47,9 +47,11 @@ const SignupForm = () => {
     e.preventDefault();
     // Basic validation (can be expanded)
     for (const key in values) {
-      // Exclude 'role' from this specific empty field check if it's always default
-      // Or ensure 'role' is always set and doesn't trigger this warning
-      if (key !== 'role' && values[key].trim() === "") { // <-- MODIFIED this line
+      // Exclude 'role' from this specific empty field check as it's always default
+      // Also exclude 'department_id' if you want it to be optional for some roles
+      // Based on your backend, 'department_id' is required for 'Staff' and 'DepartmentHead' roles.
+      // So, let's keep it in the validation if the role implies it's needed.
+      if (key !== 'role' && values[key].trim() === "") {
         Swal.fire({
           title: 'Missing Information',
           text: `Please fill in the ${key.replace(/([A-Z])/g, ' $1').toLowerCase()} field.`,
@@ -59,13 +61,27 @@ const SignupForm = () => {
         return;
       }
     }
-    // Optional: Add more specific validation like email format, password strength, phone number format
+
+    // --- NEW: Frontend-side validation for department_id based on role ---
+    // If the selected role requires a department_id AND it's empty, show warning.
+    // This mirrors the backend's validation for subsequent users.
+    if (['Staff', 'DepartmentHead'].includes(values.role) && !values.department_id.trim()) {
+        Swal.fire({
+            title: 'Missing Information',
+            text: 'Department is required for Staff and Department Head roles.',
+            icon: 'warning',
+            confirmButtonColor: '#f59e0b',
+        });
+        return;
+    }
+    // --- END NEW VALIDATION ---
+
 
     setIsLoading(true);
     try {
       const response = await axios.post(
         `${API_BASE_URL}/auth/signup`,
-        values // `values` now includes the 'role' field
+        values // `values` now includes `department_id`
       );
       if (response.status === 201) {
         await Swal.fire({
@@ -82,9 +98,8 @@ const SignupForm = () => {
       let title = 'Signup Failed';
       let text = 'An unexpected error occurred. Please try again.';
       if (err.response) {
-        // Customize message based on backend error
-        if (err.response.status === 409) { // Example: Conflict, user already exists
-            text = err.response.data.error || 'An account with this email or phone already exists.';
+        if (err.response.status === 409) {
+            text = err.response.data.message || err.response.data.error || 'An account with this email or phone already exists.';
         } else {
             text = err.response.data.message || err.response.data.error || text; // Prioritize `message` if backend sends it
         }
@@ -122,7 +137,7 @@ const SignupForm = () => {
                   {label}
                 </label>
                 <div className="relative">
-                  {IconComponent && isEmpty && ( // Show icon only if field is empty
+                  {IconComponent && isEmpty && (
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <IconComponent size={18} className="text-gray-400" />
                     </div>
@@ -152,12 +167,47 @@ const SignupForm = () => {
             );
           })}
 
+          {/* --- NEW: Department ID Input Field --- */}
+          <div>
+            <label htmlFor="department_id" className="block text-sm font-medium text-gray-700 mb-1">
+              Department ID
+            </label>
+            <div className="relative">
+              {values.department_id.trim() === "" && (
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Building2 size={18} className="text-gray-400" />
+                </div>
+              )}
+              <input
+                type="text" // Or "number" if your IDs are numeric, but varchar is safer for UUIDs/strings
+                id="department_id"
+                name="department_id"
+                placeholder="Enter Department ID (e.g., IT, HR, MATH)"
+                value={values.department_id}
+                onChange={handleChanges}
+                className={`
+                  ${values.department_id.trim() === "" ? 'pl-10' : 'pl-3'}
+                  pr-3 py-2.5 block w-full rounded-lg border border-gray-300 shadow-sm
+                  focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50
+                  transition-all duration-150 ease-in-out sm:text-sm
+                  disabled:opacity-70 disabled:bg-gray-100
+                `}
+                disabled={isLoading}
+              />
+              {/* Optional: Add help text here */}
+              <p className="mt-1 text-xs text-gray-500">
+                Required for Staff & Department Head roles.
+              </p>
+            </div>
+          </div>
+          {/* --- END NEW DEPARTMENT ID INPUT --- */}
+
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
               Password
             </label>
             <div className="relative">
-              {values.password.trim() === "" && ( // Show lock icon if password field is empty
+              {values.password.trim() === "" && (
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock size={18} className="text-gray-400" />
                 </div>
