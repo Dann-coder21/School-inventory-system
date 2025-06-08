@@ -12,7 +12,7 @@ import {
   MdDashboard, MdInventory, MdAddBox, MdList, MdAssessment, MdSettings, MdSchool,
   MdPeople, MdShoppingCart, MdAssignmentTurnedIn, MdHistory,
   MdSort, MdArrowUpward, MdArrowDownward, MdMoreVert, MdClose, MdInfo, MdCheckCircle,
-  MdError // Re-added MdError for rejection reason icon
+  MdError
 } from 'react-icons/md';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
@@ -49,9 +49,9 @@ const OrderHistory = () => {
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('');
-  const [sortConfig, setSortConfig] = useState({ 
-    key: 'request_date', 
-    direction: 'descending' 
+  const [sortConfig, setSortConfig] = useState({
+    key: 'request_date',
+    direction: 'descending'
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [ordersPerPage, setOrdersPerPage] = useState(10);
@@ -68,6 +68,7 @@ const OrderHistory = () => {
       if (!token) {
         Swal.fire('Authentication Error', 'No token found. Please log in again.', 'error');
         setIsLoadingOrders(false);
+        setAllOrders([]); // Ensure allOrders is an array even if token is missing
         return;
       }
       const response = await axios.get(`${API_BASE_URL}/api/orders`, {
@@ -75,8 +76,22 @@ const OrderHistory = () => {
           Authorization: `Bearer ${token}`,
         },
       });
-      const sortedOrders = response.data.sort((a, b) => new Date(b.request_date) - new Date(a.request_date));
-      setAllOrders(sortedOrders);
+
+      // --- IMPORTANT FIX START ---
+      if (Array.isArray(response.data)) {
+        const sortedOrders = response.data.sort((a, b) => new Date(b.request_date) - new Date(a.request_date));
+        setAllOrders(sortedOrders);
+      } else {
+        console.error("API returned non-array for order history:", response.data);
+        setAllOrders([]); // Fallback to empty array
+        Swal.fire({
+          title: 'Data Error',
+          text: 'Received unexpected data format for order history. Displaying no orders.',
+          icon: 'error',
+        });
+      }
+      // --- IMPORTANT FIX END ---
+
     } catch (error) {
       console.error("Failed to fetch orders:", error);
       const errorMsg = error.response?.data?.message || error.message || "Could not load order history.";
@@ -85,16 +100,18 @@ const OrderHistory = () => {
         text: errorMsg,
         icon: 'error',
       });
+      setAllOrders([]); // Ensure allOrders is an array on error
     } finally {
       setIsLoadingOrders(false);
     }
-  }, []);
+  }, []); // Removed `swalThemeProps` from dependencies as it's not directly used here within the `try...catch` block.
 
   useEffect(() => {
     if (!isLoadingAuth && currentUser && allowedRolesToView.includes(currentUser.role)) {
       fetchOrders();
     } else if (!isLoadingAuth && (!currentUser || !allowedRolesToView.includes(currentUser.role))) {
       setIsLoadingOrders(false);
+      setAllOrders([]); // Ensure allOrders is empty if not authorized
     }
   }, [currentUser, isLoadingAuth, fetchOrders, allowedRolesToView]);
 
@@ -114,6 +131,7 @@ const OrderHistory = () => {
   }, [activeActionMenuId]);
 
   const filteredAndSortedOrders = useMemo(() => {
+    // allOrders is guaranteed to be an array now due to the fix in fetchData
     let tempOrders = [...allOrders];
 
     // Filter out 'Cancelled' orders by default
@@ -146,6 +164,10 @@ const OrderHistory = () => {
       if (sortConfig.key === 'request_date' || sortConfig.key === 'response_date') {
         const dateA = new Date(a[sortConfig.key]);
         const dateB = new Date(b[sortConfig.key]);
+        // Handle potential invalid dates (e.g., from 'N/A' string)
+        if (isNaN(dateA.getTime())) return sortConfig.direction === 'ascending' ? -1 : 1; // Sort invalid dates to end
+        if (isNaN(dateB.getTime())) return sortConfig.direction === 'ascending' ? 1 : -1; // Sort invalid dates to end
+
         return sortConfig.direction === 'ascending' ? dateA - dateB : dateB - dateA;
       } else {
         if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
@@ -179,8 +201,8 @@ const OrderHistory = () => {
 
   const getSortIcon = (key) => {
     if (sortConfig.key !== key) return null;
-    return sortConfig.direction === 'ascending' 
-      ? <MdArrowUpward className="ml-1 text-xs" /> 
+    return sortConfig.direction === 'ascending'
+      ? <MdArrowUpward className="ml-1 text-xs" />
       : <MdArrowDownward className="ml-1 text-xs" />;
   };
 
@@ -458,7 +480,7 @@ const OrderHistory = () => {
               <p><strong>Status:</strong> <span className={`font-semibold ${getStatusClass(viewingOrderDetails.status)}`}>{viewingOrderDetails.status}</span></p>
               <p><strong>Requested On:</strong> {formatFullDate(viewingOrderDetails.request_date)}</p>
               {viewingOrderDetails.response_date && <p><strong>Last Action On:</strong> {formatFullDate(viewingOrderDetails.response_date)}</p>}
-              
+
               {/* Approval/Rejection/Fulfillment details with roles */}
               {viewingOrderDetails.approved_by_name && viewingOrderDetails.approved_by_role === 'DepartmentHead' && (
                 <p><strong>Department Approved By:</strong> {viewingOrderDetails.approved_by_name} ({viewingOrderDetails.approved_by_role})</p>
@@ -475,7 +497,7 @@ const OrderHistory = () => {
 
               {viewingOrderDetails.notes && <p><strong>Requester Notes:</strong> {viewingOrderDetails.notes}</p>}
               {viewingOrderDetails.admin_notes && <p><strong>Admin Notes:</strong> {viewingOrderDetails.admin_notes}</p>}
-              
+
               {/* Highlight rejection reason ONLY if status is Rejected and reason exists */}
               {viewingOrderDetails.status === 'Rejected' && viewingOrderDetails.rejection_reason && (
                 <div className={`mt-4 p-3 rounded-md border ${darkMode ? 'bg-red-900/30 border-red-700 text-red-300' : 'bg-red-50 border-red-200 text-red-800'}`}>
