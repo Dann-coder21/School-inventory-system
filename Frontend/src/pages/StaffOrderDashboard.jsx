@@ -13,7 +13,6 @@ import {
   MdMenu, MdClose, MdThumbUp, MdThumbDown
 } from 'react-icons/md';
 import Layout from '../Components/Layout/Layout';
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 const StaffOrderDashboard = () => {
@@ -64,13 +63,13 @@ const StaffOrderDashboard = () => {
       }
 
       // Fetch inventory items
-      const itemsResponse = await axios.get(`${API_BASE_URL}/items/inventory`, {
+      const itemsResponse = await axios.get("${API_BASE_URL}/items/inventory", {
         headers: { Authorization: `Bearer ${token}` }
       });
       setItems(itemsResponse.data);
       
       // Fetch order history for the current user
-      const historyResponse = await axios.get("${API_BASE_URL}/api/orders", {
+      const historyResponse = await axios.get(`${API_BASE_URL}/api/orders`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setOrderHistory(historyResponse.data);
@@ -425,17 +424,16 @@ const StaffOrderDashboard = () => {
   const categories = useMemo(() => ['All', ...new Set(items.map(item => item.category))].sort(), [items]);
 
   // Status colors for order history
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Pending': return darkMode ? 'bg-yellow-500/20 text-yellow-300' : 'bg-yellow-100 text-yellow-700';
-      case 'DepartmentApproved': return darkMode ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700';
-      case 'Approved': return darkMode ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-700';
-      case 'Fulfilled': return darkMode ? 'bg-green-500/20 text-green-300' : 'bg-green-100 text-green-700';
-      case 'Rejected': return darkMode ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700';
-      case 'Cancelled': return darkMode ? 'bg-slate-500/20 text-slate-300' : 'bg-slate-200 text-slate-600';
-      default: return darkMode ? 'bg-slate-600 text-slate-300' : 'bg-slate-200 text-slate-600';
-    }
-  };
+  const statusColors = {
+  Pending: darkMode ? 'bg-yellow-500/20 text-yellow-300' : 'bg-yellow-100 text-yellow-700',
+  DepartmentApproved: darkMode ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700',
+  Approved: darkMode ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-700',
+  Fulfilled: darkMode ? 'bg-green-500/20 text-green-300' : 'bg-green-100 text-green-700',
+  Rejected: darkMode ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700',
+  Cancelled: darkMode ? 'bg-slate-500/20 text-slate-300' : 'bg-slate-200 text-slate-600',
+};
+
+const getStatusColor = (status) => statusColors[status] || (darkMode ? 'bg-slate-600 text-slate-300' : 'bg-slate-200 text-slate-600');
 
   const getStatusIcon = (status) => {
     switch (status) {

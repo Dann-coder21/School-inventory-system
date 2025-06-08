@@ -2,17 +2,18 @@ import React, { useContext } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 // --- Imports for existing Components/ folder ---
-import Dashboard from "./Components/Dashboard"; // This is the general/admin dashboard
+import Dashboard from "./Components/Dashboard";
 import Inventory from "./Components/Inventory";
 import AddItemForm from "./Components/AddItemForm";
 import ViewItems from "./Components/ViewItems";
-import Reports from "./Components/Reports";
+import Reports from "./Components/Reports"; // This is your generic Reports page
 import Settings from "./Components/Settings";
 import Login from "./Components/Login";
 import SignupForm from "./Components/Signup";
 import UserManagementPage from "./Components/UserManagementPage";
-import OrderHistory from "./Components/StaffOrders/OrderHistory"; // This is the order history component
-import DepartmentPage from "./pages/DepartmentPage"; // NEW: Import DepartmentPage
+import OrderHistory from "./Components/StaffOrders/OrderHistory";
+import DepartmentPage from "./pages/DepartmentPage"; // Department Head's page
+import DepartmentReportPage from "./pages/DepartmentReport"; // NEW: Department Report Page
 
 // --- Imports for Auth and Theme Contexts ---
 import { AuthProvider, AuthContext } from "./contexts/AuthContext";
@@ -28,8 +29,8 @@ import StaffOrderDashboard from "./pages/StaffOrderDashboard"; // This is the st
 import IncomingRequestsPage from "./pages/IncomingRequestsPage";
 
 // Import Layout and LoadingSpinner
-import Layout from "./Components/Layout/Layout"; // Path is correct
-import LoadingSpinner from "./Components/LoadingSpinner"; // Make sure this path is correct
+import Layout from "./Components/Layout/Layout";
+import LoadingSpinner from "./Components/LoadingSpinner";
 
 // --- RouteWrapper Component for Authentication and Authorization ---
 const RouteWrapper = ({ children, allowedRoles }) => {
@@ -62,7 +63,6 @@ const RouteWrapper = ({ children, allowedRoles }) => {
 };
 
 function App() {
-  // Define the RootRedirector component directly within App
   const RootRedirector = () => {
     const { currentUser, isLoadingAuth } = useContext(AuthContext);
 
@@ -128,7 +128,7 @@ function App() {
                 path="/viewitems"
                 element={<RouteWrapper allowedRoles={['Admin', 'Staff', 'DepartmentHead', 'StockManager', 'Viewer']}><Layout><ViewItems /></Layout></RouteWrapper>}
               />
-              {/* Reports - Staff AND DepartmentHead excluded */}
+              {/* Generic Reports page - Staff AND DepartmentHead excluded */}
               <Route
                 path="/reports"
                 element={<RouteWrapper allowedRoles={['Admin', 'StockManager', 'Viewer']}><Layout><Reports /></Layout></RouteWrapper>}
@@ -145,7 +145,7 @@ function App() {
                 element={<RouteWrapper allowedRoles={['Admin']}><Layout><UserManagementPage /></Layout></RouteWrapper>}
               />
 
-              {/* All Item Requests Page - NOW INCLUDES STAFF */}
+              {/* All Item Requests Page */}
               <Route
                 path="/orders"
                 element={<RouteWrapper allowedRoles={['Admin', 'Staff', 'DepartmentHead', 'StockManager']}><Layout><StaffOrderPage /></Layout></RouteWrapper>}
@@ -156,16 +156,28 @@ function App() {
                 element={<RouteWrapper allowedRoles={['Admin', 'Staff', 'DepartmentHead', 'StockManager']}><Layout><OrderHistory /></Layout></RouteWrapper>}
               />
 
-              {/* NEW: Department Page */}
+              {/* Department Page (For DepartmentHead to manage their own requests) */}
               <Route
                 path="/department-page"
                 element={<RouteWrapper allowedRoles={['Admin', 'DepartmentHead', 'StockManager']}><Layout><DepartmentPage /></Layout></RouteWrapper>}
               />
 
-              {/* FIX: Incoming Requests Page - now only for Admin and StockManager */}
+              {/* Incoming Requests Page (Admin/StockManager approve/reject) */}
               <Route
                 path="/incoming-requests"
-                element={<RouteWrapper allowedRoles={['Admin', 'StockManager']}><Layout><IncomingRequestsPage /></Layout></RouteWrapper>} // DepartmentHead removed
+                element={<RouteWrapper allowedRoles={['Admin', 'StockManager']}><Layout><IncomingRequestsPage /></Layout></RouteWrapper>}
+              />
+
+              {/* NEW: Department Report Page - Exclusively for Department Heads */}
+              {/* DH must provide departmentId in URL or will be redirected to their own */}
+              <Route
+                path="/reports/department/:departmentId"
+                element={<RouteWrapper allowedRoles={['DepartmentHead']}><Layout><DepartmentReportPage /></Layout></RouteWrapper>}
+              />
+              {/* DH can access /reports/department without ID and will be redirected internally */}
+              <Route
+                path="/reports/department"
+                element={<RouteWrapper allowedRoles={['DepartmentHead']}><Layout><DepartmentReportPage /></Layout></RouteWrapper>}
               />
 
               {/* Fallback route */}

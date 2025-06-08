@@ -7,8 +7,9 @@ import {
   MdDashboard, MdInventory, MdAddBox, MdList, MdAssessment, MdSettings, MdSchool,
   MdPeople, MdShoppingCart, MdAssignmentTurnedIn,
   MdHistory, // Import MdHistory icon for Order History
-  MdApartment // Import MdApartment icon for Department Page
-} from 'react-icons/md';
+  MdApartment, // Import MdApartment icon for Department Page
+  MdBarChart // Import MdBarChart icon for Department Report
+} from 'react-icons/md'; // Ensure MdBarChart is imported
 
 const Layout = ({ children }) => {
   const { darkMode } = useContext(ThemeContext);
@@ -48,8 +49,7 @@ const Layout = ({ children }) => {
     return currentUser && allowedOrderHistoryRoles.includes(currentUser.role);
   }, [currentUser, allowedOrderHistoryRoles]);
 
-  // FIX: Removed DepartmentHead from allowedIncomingRoles
-  const allowedIncomingRoles = useMemo(() => ['Admin', 'StockManager'], []); // DepartmentHead removed
+  const allowedIncomingRoles = useMemo(() => ['Admin', 'StockManager'], []);
   const showIncomingRequestsLink = useMemo(() => {
     return currentUser && allowedIncomingRoles.includes(currentUser.role);
   }, [currentUser, allowedIncomingRoles]);
@@ -58,8 +58,24 @@ const Layout = ({ children }) => {
     return currentUser && currentUser.role === 'DepartmentHead' && currentUser.department_id;
   }, [currentUser]);
 
-  // Roles that are allowed to see Inventory and Reports
+  // Roles that are allowed to see Inventory and generic Reports
   const allowedInventoryReportsRoles = useMemo(() => ['Admin', 'StockManager', 'Viewer'], []);
+
+  // NEW: Department Report Link visibility - ONLY for DepartmentHead
+  const showDepartmentReportLink = useMemo(() => {
+    // Only Department Head can see THEIR department report.
+    return currentUser?.role === 'DepartmentHead' && currentUser?.department_id;
+  }, [currentUser]);
+
+  // Determine the correct path for the Department Report link (always specific for DH now)
+  const departmentReportPath = useMemo(() => {
+    if (currentUser?.role === 'DepartmentHead' && currentUser?.department_id) {
+      return `/reports/department/${currentUser.department_id}`;
+    }
+    // This path shouldn't be reached by other roles as the link won't show
+    return `/reports/department`; // Fallback, though should be unreachable
+  }, [currentUser]);
+
 
   if (isLoadingAuth) {
     return (
@@ -106,14 +122,21 @@ const Layout = ({ children }) => {
             <NavLink to="/department-page" className={sidebarLinkClass}><MdApartment className="text-xl" /> My Department</NavLink>
           )}
 
-          {/* FIX: Incoming Requests Link - now only for Admin and StockManager */}
           {showIncomingRequestsLink && (
             <NavLink to="/incoming-requests" className={sidebarLinkClass}><MdAssignmentTurnedIn className="text-xl" /> Incoming Requests</NavLink>
           )}
 
-           {/* Conditional rendering for "Reports" - Staff AND DepartmentHead excluded */}
+           {/* Conditional rendering for generic "Reports" - Staff AND DepartmentHead excluded */}
           {currentUser && allowedInventoryReportsRoles.includes(currentUser.role) && (
             <NavLink to="/reports" className={sidebarLinkClass}><MdAssessment className="text-xl" /> Reports</NavLink>
+          )}
+
+          {/* NEW: Department Report Link (ONLY for Department Head, always to their specific report) */}
+          {showDepartmentReportLink && (
+            <NavLink to={departmentReportPath} className={sidebarLinkClass}>
+              <MdBarChart className="text-xl" /> 
+              My Department Report {/* Changed text to always be "My Department Report" */}
+            </NavLink>
           )}
 
           {currentUser?.role === 'Admin' && (
@@ -124,7 +147,7 @@ const Layout = ({ children }) => {
         </nav>
       </aside>
 
-      {/* Main Content Area: NO ml-[250px] here as per your request */}
+      {/* Main Content Area */}
       <div className={`flex-1 flex flex-col w-full min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
         {children} {/* Your page components render here */}
       </div>
