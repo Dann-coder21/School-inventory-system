@@ -133,7 +133,7 @@ const OrderForm = ({ onOrderSubmitted }) => {
         color: darkMode ? '#e2e8f0' : '#1e293b',
       });
 
-      const response = await axios.post('${API_BASE_URL}/api/orders/request', {
+      const response = await axios.post(`${API_BASE_URL}/api/orders/request`, {
         item_name: selectedItemObj.item_name, // Backend expects item_name
         requested_quantity: Number(formData.requestedQuantity),
         notes: formData.notes,
