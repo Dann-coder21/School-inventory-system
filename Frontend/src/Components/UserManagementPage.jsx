@@ -17,7 +17,8 @@ import {
   MdSort, MdSortByAlpha, MdArrowUpward, MdArrowDownward,
   MdToggleOn, MdToggleOff,
   MdLockReset,
-  MdApartment // NEW: Icon for Department
+  MdApartment, // Icon for Department
+  MdHelpOutline // Added for generic info/question icon
 } from 'react-icons/md';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
@@ -100,13 +101,34 @@ const UserManagementPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [usersPerPage, setUsersPerPage] = useState(10);
 
+  // --- SweetAlert2 Theme Properties (Memoized) ---
+  const swalThemeProps = useMemo(() => ({
+    background: darkMode ? 'rgba(30, 41, 59, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+    color: darkMode ? '#e2e8f0' : '#1e293b',
+    customClass: {
+      popup: 'rounded-xl shadow-2xl p-4 sm:p-6',
+      confirmButton: `px-5 py-2.5 rounded-lg font-semibold text-white text-sm ${darkMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-indigo-500 hover:bg-indigo-600'}`,
+      cancelButton: `px-5 py-2.5 rounded-lg font-semibold text-sm ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`,
+      title: `text-lg sm:text-xl font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`,
+      htmlContainer: `text-sm ${darkMode ? 'text-slate-300' : 'text-slate-600'}`,
+      icon: 'text-4xl sm:text-5xl mt-2 mb-2 sm:mb-4',
+    },
+    buttonsStyling: false,
+    backdrop: `rgba(0,0,0,0.65)`
+  }), [darkMode]);
+
   // --- Fetch Departments ---
   const fetchDepartments = useCallback(async () => {
     setIsLoadingDepartments(true);
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        Swal.fire('Authentication Error', 'No token found. Please log in again.', 'error');
+        Swal.fire({
+          ...swalThemeProps,
+          title: 'Authentication Error',
+          text: 'No token found. Please log in again.',
+          icon: 'error'
+        });
         setIsLoadingDepartments(false);
         return;
       }
@@ -122,6 +144,7 @@ const UserManagementPage = () => {
     } catch (error) {
       console.error("Failed to fetch departments:", error);
       Swal.fire({
+        ...swalThemeProps,
         title: 'Error Fetching Departments',
         text: error.response?.data?.message || error.message || "Could not load departments.",
         icon: 'error',
@@ -129,7 +152,7 @@ const UserManagementPage = () => {
     } finally {
       setIsLoadingDepartments(false);
     }
-  }, [newUser.department_id]);
+  }, [newUser.department_id, swalThemeProps]); // Added swalThemeProps to dependency array
 
   // --- Fetch Users ---
   const fetchUsers = useCallback(async () => {
@@ -137,7 +160,12 @@ const UserManagementPage = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        Swal.fire('Authentication Error', 'No token found. Please log in again.', 'error');
+        Swal.fire({
+          ...swalThemeProps,
+          title: 'Authentication Error',
+          text: 'No token found. Please log in again.',
+          icon: 'error'
+        });
         setIsLoadingUsers(false);
         return;
       }
@@ -157,6 +185,7 @@ const UserManagementPage = () => {
       console.error("Failed to fetch users:", error);
       const errorMsg = error.response?.data?.message || error.message || "Could not load user data.";
       Swal.fire({
+        ...swalThemeProps,
         title: 'Error Fetching Users',
         text: errorMsg,
         icon: 'error',
@@ -164,7 +193,7 @@ const UserManagementPage = () => {
     } finally {
       setIsLoadingUsers(false);
     }
-  }, [usersPerPage]); // Added usersPerPage to dependencies
+  }, [usersPerPage, swalThemeProps]); // Added swalThemeProps to dependencies
 
   useEffect(() => {
     if (!isLoadingAuth && currentUser && currentUser.role === 'Admin') {
@@ -281,20 +310,25 @@ const UserManagementPage = () => {
 
     setAddValidationErrors(errors);
     if (Object.values(errors).some(msg => msg !== '')) {
-      Swal.fire('Validation Error', 'Please correct the errors in the form before submitting.', 'error');
+      Swal.fire({
+        ...swalThemeProps,
+        title: 'Validation Error',
+        text: 'Please correct the errors in the form before submitting.',
+        icon: 'error'
+      });
       return;
     }
 
     try {
       const token = localStorage.getItem('token');
-      if (!token) { Swal.fire('Error', 'Authentication token not found. Please log in.', 'error'); return; }
+      if (!token) { Swal.fire({ ...swalThemeProps, title: 'Error', text: 'Authentication token not found. Please log in.', icon: 'error' }); return; }
 
       const userPayload = { ...newUser };
       userPayload.dob = newUser.dob || null;
 
       await axios.post(`${API_BASE_URL}/api/admin/adduser`, userPayload, { headers: { 'Authorization': `Bearer ${token}` } });
 
-      Swal.fire('Success!', 'User added successfully!', 'success');
+      Swal.fire({ ...swalThemeProps, title: 'Success!', text: 'User added successfully!', icon: 'success' });
       setShowAddForm(false);
       setNewUser({
           fullname: '', email: '', password: '', role: 'Staff', phone: '', dob: '',
@@ -304,7 +338,7 @@ const UserManagementPage = () => {
       setAddValidationErrors({});
       fetchUsers();
     } catch (error) {
-      Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to add user due to a server error.', 'error');
+      Swal.fire({ ...swalThemeProps, title: 'Error', text: error.response?.data?.message || error.message || 'Failed to add user due to a server error.', icon: 'error' });
     }
   };
 
@@ -381,13 +415,18 @@ const UserManagementPage = () => {
 
     setEditValidationErrors(errors);
     if (Object.values(errors).some(msg => msg !== '')) {
-      Swal.fire('Validation Error', 'Please correct the errors in the form before saving.', 'error');
+      Swal.fire({
+        ...swalThemeProps,
+        title: 'Validation Error',
+        text: 'Please correct the errors in the form before saving.',
+        icon: 'error'
+      });
       return;
     }
 
     try {
       const token = localStorage.getItem('token');
-      if (!token) { Swal.fire('Error', 'Authentication token not found. Please log in.', 'error'); return; }
+      if (!token) { Swal.fire({ ...swalThemeProps, title: 'Error', text: 'Authentication token not found. Please log in.', icon: 'error' }); return; }
 
       const updatePayload = {
         fullname: editingUser.fullname,
@@ -408,11 +447,11 @@ const UserManagementPage = () => {
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
 
-      Swal.fire('Success', 'User updated successfully!', 'success');
+      Swal.fire({ ...swalThemeProps, title: 'Success', text: 'User updated successfully!', icon: 'success' });
       setEditingUser(null);
       fetchUsers();
     } catch (error) {
-      Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to update user.', 'error');
+      Swal.fire({ ...swalThemeProps, title: 'Error', text: error.response?.data?.message || error.message || 'Failed to update user.', icon: 'error' });
     }
   };
 
@@ -427,19 +466,37 @@ const UserManagementPage = () => {
     setActiveActionMenuId(null); // Close action menu first
     try {
       const result = await Swal.fire({
+        ...swalThemeProps, // Inherit base theme
         title: 'Are you sure?',
-        text: `Delete user "${username}"? This action can be undone by restoring the user (if soft deleted).`,
+        html: `<div class="flex flex-col items-center gap-4">
+                  <span class="${darkMode ? 'text-red-300' : 'text-red-500'}">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </span>
+                  <p class="text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-center">
+                    Delete user <strong>"${username}"</strong>? This action will <strong class="font-bold text-red-500">soft-delete</strong> the user, meaning they can be restored later.
+                  </p>
+                </div>`,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Yes, delete it!'
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel',
+        // Override customClass for buttons for specific colors here
+        customClass: {
+          ...swalThemeProps.customClass,
+          confirmButton: `px-5 py-2.5 rounded-lg font-semibold text-white text-sm ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'}`,
+          cancelButton: `px-5 py-2.5 rounded-lg font-semibold text-sm ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`,
+          actions: 'flex justify-center gap-4 mt-6',
+        },
+        buttonsStyling: false,
       });
 
       if (!result.isConfirmed) return; // If cancelled, do nothing
 
       // Show loading state while deleting
       Swal.fire({
+        ...swalThemeProps,
         title: 'Deleting User',
         text: 'Please wait...',
         allowOutsideClick: false,
@@ -461,6 +518,7 @@ const UserManagementPage = () => {
       await fetchUsers();
       
       Swal.fire({
+        ...swalThemeProps,
         title: 'Deleted!',
         text: `User "${username}" has been deleted (soft-deleted).`,
         icon: 'success',
@@ -497,6 +555,7 @@ const UserManagementPage = () => {
       }
 
       Swal.fire({
+        ...swalThemeProps,
         title: 'Error',
         text: errorMessage,
         icon: 'error'
@@ -511,16 +570,38 @@ const UserManagementPage = () => {
     const newStatus = !user.status; // Determine the new status (true for Active, false for Inactive)
     const originalStatus = user.status; // Store original status for rollback
 
-    const actionText = newStatus ? 'ACTIVATE' : 'DEACTIVATE';
+    const actionText = newStatus ? 'Activate' : 'Deactivate';
+    const actionColorClass = newStatus ? (darkMode ? 'text-green-300' : 'text-green-500') : (darkMode ? 'text-red-300' : 'text-red-500');
+    const actionSvg = newStatus ?
+      `<svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>` :
+      `<svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636M5.636 5.636L18.364 18.364" />
+      </svg>`;
+
 
     const result = await Swal.fire({
+      ...swalThemeProps,
       title: 'Confirm Action',
-      text: `Are you sure you want to ${actionText} user "${user.fullname}"?`,
+      html: `<div class="flex flex-col items-center gap-4">
+               <span class="${actionColorClass}">${actionSvg}</span>
+               <p class="text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-center">
+                 Are you sure you want to <strong>${actionText}</strong> user <strong>"${user.fullname}"</strong>?
+                 <br>This will affect their ability to log in and access the system.
+               </p>
+             </div>`,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonColor: newStatus ? '#28a745' : '#dc3545', // Green for Activate, Red for Deactivate
-      cancelButtonColor: '#6c757d',
-      confirmButtonText: `Yes, ${actionText}`
+      confirmButtonText: `Yes, ${actionText}`,
+      cancelButtonText: 'Cancel',
+      customClass: {
+        ...swalThemeProps.customClass,
+        confirmButton: `px-5 py-2.5 rounded-lg font-semibold text-white text-sm ${newStatus ? (darkMode ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600') : (darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600')}`,
+        cancelButton: `px-5 py-2.5 rounded-lg font-semibold text-sm ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`,
+        actions: 'flex justify-center gap-4 mt-6',
+      },
+      buttonsStyling: false,
     });
 
     if (result.isConfirmed) {
@@ -540,10 +621,12 @@ const UserManagementPage = () => {
           { headers: { 'Authorization': `Bearer ${token}` } }
         );
         
-        Swal.fire('Success', `User ${user.fullname} has been ${newStatus ? 'activated' : 'deactivated'}.`, 'success');
-        // No need to call fetchUsers() here, as optimistic update handles it.
-        // If there's a need for a full data refresh, it can be added back,
-        // but it would overwrite the optimistic update briefly.
+        Swal.fire({
+          ...swalThemeProps,
+          title: 'Success',
+          text: `User ${user.fullname} has been ${newStatus ? 'activated' : 'deactivated'}.`,
+          icon: 'success'
+        });
       } catch (error) {
         // Rollback UI if API call fails
         setAllUsers(prevUsers => 
@@ -551,7 +634,12 @@ const UserManagementPage = () => {
             u.id === user.id ? { ...u, status: originalStatus } : u
           )
         );
-        Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to update user status.', 'error');
+        Swal.fire({
+          ...swalThemeProps,
+          title: 'Error',
+          text: error.response?.data?.message || error.message || 'Failed to update user status.',
+          icon: 'error'
+        });
       }
     }
   };
@@ -560,13 +648,30 @@ const UserManagementPage = () => {
   const handleForcePasswordReset = async (userId, username) => {
     setActiveActionMenuId(null);
     const result = await Swal.fire({
+      ...swalThemeProps,
       title: 'Force Password Reset?',
-      text: `This will reset the password for "${username}" to a temporary one or send a reset link (depending on backend). Confirm?`,
+      html: `<div class="flex flex-col items-center gap-4">
+               <span class="${darkMode ? 'text-yellow-300' : 'text-yellow-500'}">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3v2.25m-18 0a3 3 0 013-3v2.25m-3 3v-2.25A3 3 0 016.75 9h-1.5m18 0h-1.5m-14.25 0v2.25A3 3 0 019 15h6a3 3 0 013-3v-2.25m-15 0a3 3 0 00-3 3v2.25V21l4.72-4.72A.75.75 0 0017.25 21V12a3 3 0 00-3-3H9a3 3 0 00-3 3v2.25V21l4.72-4.72A.75.75 0 0112 18.75h2.25m-10.5-2.25h-2.25" />
+                 </svg>
+               </span>
+               <p class="text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-center">
+                 This will reset the password for <strong>"${username}"</strong> to a temporary one or send a reset link (depending on backend configuration).
+                 <br>Are you sure you want to proceed?
+               </p>
+             </div>`,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#ffc107',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Yes, Reset Password'
+      confirmButtonText: 'Yes, Reset Password',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        ...swalThemeProps.customClass,
+        confirmButton: `px-5 py-2.5 rounded-lg font-semibold text-white text-sm ${darkMode ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-yellow-500 hover:bg-yellow-600'}`,
+        cancelButton: `px-5 py-2.5 rounded-lg font-semibold text-sm ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`,
+        actions: 'flex justify-center gap-4 mt-6',
+      },
+      buttonsStyling: false,
     });
 
     if (result.isConfirmed) {
@@ -582,16 +687,34 @@ const UserManagementPage = () => {
         const tempPassword = response.data?.tempPassword || 'A new password has been set/emailed.';
 
         Swal.fire({
+          ...swalThemeProps,
           title: 'Password Reset',
-          html: `<p>Password for <strong>${username}</strong> has been reset.</p><p><strong>Temporary Password:</strong> <code>${tempPassword}</code><br/>(Please communicate this to the user securely)</p>`,
-          icon: 'success',
+          html: `<div class="flex flex-col items-center gap-3">
+                   <span class="${darkMode ? 'text-green-300' : 'text-green-500'}">
+                     <svg xmlns="http://www.w3.org/2000/svg" class="w-14 h-14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                     </svg>
+                   </span>
+                   <p class="text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-center">
+                     Password for <strong>${username}</strong> has been reset.
+                   </p>
+                   <div class="${darkMode ? 'bg-slate-700 text-slate-200' : 'bg-gray-100 text-gray-800'} p-3 rounded-lg font-mono text-sm max-w-full overflow-x-auto break-words">
+                     <strong>Temporary Password:</strong> <code>${tempPassword}</code>
+                   </div>
+                   <p class="text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'} text-center mt-1">
+                     Please communicate this to the user securely.
+                   </p>
+                 </div>`,
+          icon: 'success', // Icon is rendered via the HTML, but this sets the icon color/padding
           confirmButtonText: 'Got It',
           customClass: {
-            htmlContainer: 'text-left'
+            ...swalThemeProps.customClass,
+            htmlContainer: `${swalThemeProps.customClass.htmlContainer} text-left`, // Ensure inner content is left aligned
+            icon: 'hidden' // Hide default icon to use custom one in HTML
           }
         });
       } catch (error) {
-        Swal.fire('Error', error.response?.data?.message || error.message || 'Failed to force password reset.', 'error');
+        Swal.fire({ ...swalThemeProps, title: 'Error', text: error.response?.data?.message || error.message || 'Failed to force password reset.', icon: 'error' });
       }
     }
   };
@@ -657,9 +780,14 @@ const UserManagementPage = () => {
         <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 ${
           darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'
         } shadow-sm`}>
-          <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
-            User Management
-          </h2>
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-lg ${darkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
+              <MdPeople size={24}/>
+            </div>
+            <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
+              User Management
+            </h2>
+          </div>
           <button
             onClick={() => setShowAddForm(true)}
             className={`${buttonBaseClass} ${darkMode ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-indigo-500 hover:bg-indigo-600 text-white'}`}

@@ -1,4 +1,5 @@
-// --- IMPORTS ---
+// src/Components/Login.jsx
+
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Swal from 'sweetalert2';
@@ -83,7 +84,17 @@ const Login = () => {
       icon: "error",
     };
 
-    if (error.message.includes("Incorrect email or password") || 
+    // --- CRITICAL: This condition relies on your backend sending a specific message ---
+    // Example backend response for pending user: res.status(403).json({ message: 'Your account is pending approval...' });
+    if (error.message && error.message.includes('pending approval')) {
+        alertConfig = {
+            title: "Account Pending Approval",
+            text: "Your account is awaiting administrator approval. You will be able to log in once it's activated.",
+            icon: "info",
+            confirmButtonColor: "#3b82f6",
+        };
+    } 
+    else if (error.message.includes("Incorrect email or password") || 
         error.message.includes("No account found")) {
       alertConfig = {
         title: "Authentication Failed",

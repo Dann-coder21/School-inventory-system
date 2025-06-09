@@ -1,3 +1,5 @@
+// src/App.jsx
+
 import React, { useContext } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
@@ -10,10 +12,8 @@ import Reports from "./Components/Reports"; // This is your generic Reports page
 import Settings from "./Components/Settings";
 import Login from "./Components/Login";
 import SignupForm from "./Components/Signup";
-import UserManagementPage from "./Components/UserManagementPage";
+import UserManagementPage from "./Components/UserManagementPage"; // Keep this as is
 import OrderHistory from "./Components/StaffOrders/OrderHistory";
-import DepartmentPage from "./pages/DepartmentPage"; // Department Head's page
-import DepartmentReportPage from "./pages/DepartmentReport"; // NEW: Department Report Page
 
 // --- Imports for Auth and Theme Contexts ---
 import { AuthProvider, AuthContext } from "./contexts/AuthContext";
@@ -23,10 +23,13 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { InventoryProvider } from "./contexts/InventoryContext";
 import { OrderProvider } from "./contexts/OrderContext";
 
-// --- Imports for new pages/ components ---
-import StaffOrderPage from "./pages/StaffOrderPage"; // This is the 'All Item Requests' page
-import StaffOrderDashboard from "./pages/StaffOrderDashboard"; // This is the staff-specific order dashboard
+// --- Imports for new pages/ components (assuming they are in `src/pages`) ---
+import StaffOrderPage from "./pages/StaffOrderPage";
+import StaffOrderDashboard from "./pages/StaffOrderDashboard";
 import IncomingRequestsPage from "./pages/IncomingRequestsPage";
+import DepartmentPage from "./pages/DepartmentPage";
+import DepartmentReportPage from "./pages/DepartmentReport";
+import UserRequestsPage from "./pages/UserRequestsPage"; // <--- NEW: Import UserRequestsPage
 
 // Import Layout and LoadingSpinner
 import Layout from "./Components/Layout/Layout";
@@ -139,10 +142,16 @@ function App() {
                 element={<RouteWrapper allowedRoles={['Admin', 'Staff', 'DepartmentHead', 'StockManager', 'Viewer']}><Layout><Settings /></Layout></RouteWrapper>}
               />
 
-              {/* User Management Page */}
+              {/* User Management Page (All Users) */}
               <Route
                 path="/admin/users"
                 element={<RouteWrapper allowedRoles={['Admin']}><Layout><UserManagementPage /></Layout></RouteWrapper>}
+              />
+
+              {/* NEW: User Requests Page */}
+              <Route
+                path="/admin/user-requests"
+                element={<RouteWrapper allowedRoles={['Admin']}><Layout><UserRequestsPage /></Layout></RouteWrapper>}
               />
 
               {/* All Item Requests Page */}

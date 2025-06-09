@@ -1,87 +1,18 @@
+// Server/routes/authRoutes.js
+
 import express from "express";
 import { connectToDatabase, getDbConnection } from "../lib/db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import createAccount from '../controllers/auth.js'; // Adjust path based on your structure
 
 const router = express.Router();
-
-// The `createAccount` function (for /signup)
-const createAccount = async (req, res) => {
-  const { fullname, email, dob, phone, password, role, department_id } = req.body;
-
-  if (!fullname || !email || !password || !role) {
-    return res.status(400).json({ message: "Full name, email, password, and role are required." });
-  }
-
-  let departmentIdToInsert = department_id || null;
-
-  if (['Staff', 'DepartmentHead'].includes(role) && !departmentIdToInsert) {
-    return res.status(400).json({ message: "Department is required for this role." });
-  }
-
-  try {
-    const pool = await connectToDatabase();
-
-    const [existingUsers] = await pool.query(
-      "SELECT id FROM users WHERE email = ?",
-      [email]
-    );
-
-    if (existingUsers.length > 0) {
-      return res.status(409).json({ message: "User with this email already exists." });
-    }
-
-    if (departmentIdToInsert) {
-      const [departments] = await pool.query(
-        "SELECT id FROM departments WHERE id = ?",
-        [departmentIdToInsert]
-      );
-      if (departments.length === 0) {
-        return res.status(400).json({ message: "Invalid department ID provided. Department does not exist." });
-      }
-    }
-
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    const phoneValue = phone || null;
-    const dobValue = dob || null;
-
-    // Default status to active (1) for new users created via signup
-    // Adjust if you want new signups to be inactive by default
-    const defaultStatus = 1;
-
-    const [insertResult] = await pool.query(
-      "INSERT INTO users (fullname, email, password, role, dob, phone, department_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [fullname, email, hashedPassword, role, dobValue, phoneValue, departmentIdToInsert, defaultStatus]
-    );
-
-    if (insertResult.affectedRows === 1) {
-      return res.status(201).json({ message: "User created successfully." });
-    } else {
-      console.error("User creation error: Insert query affected 0 rows.", insertResult);
-      return res.status(500).json({ message: "Failed to create user due to an unexpected database issue." });
-    }
-
-  } catch (err) {
-    console.error("Signup Controller Error:", err.message, err.stack);
-    if (err.code === 'ER_DUP_ENTRY') {
-        return res.status(409).json({ message: "User with this email already exists (database constraint)." });
-    }
-    if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_NO_REFERENCED_ROW') {
-        return res.status(400).json({ message: "The provided department does not exist. Please select a valid department." });
-    }
-    return res.status(500).json({ message: "An unexpected server error occurred during user creation. Please try again." });
-  }
-};
-
 
 router.get("/test", (req, res) => {
   console.log("Test route hit!");
   res.send("Test route is working!");
 });
 
-// Link createAccount to the /signup route
 router.post("/signup", createAccount);
 console.log("authRoutes loaded");
 
@@ -95,10 +26,10 @@ router.post("/login", async (req, res) => {
 
   try {
     const pool = await connectToDatabase();
-    // *** FIX START: Ensure department_id, department_name, and status are selected ***
+    
     const [rows] = await pool.query(
       `SELECT
-         u.id, u.fullname, u.email, u.role, u.password, u.department_id, u.status,
+         u.id, u.fullname, u.email, u.role, u.password, u.department_id, u.status, u.created_at, u.phone, u.dob,
          d.name AS department_name
        FROM
          users u
@@ -107,7 +38,6 @@ router.post("/login", async (req, res) => {
        WHERE u.email = ?`,
       [email]
     );
-    // *** FIX END ***
 
     if (rows.length === 0) {
       return res.status(404).json({ message: "User not found with this email." });
@@ -115,18 +45,16 @@ router.post("/login", async (req, res) => {
 
     const user = rows[0];
 
-    // Check if the user account is active
-    if (user.status === 0) { // Assuming 'status' is tinyint(1)
-        return res.status(403).json({ message: "Your account is deactivated. Please contact an administrator." });
+    if (user.status === 0) { // If status is 0, it means pending or inactive
+        return res.status(403).json({ message: "Your account is pending approval or has been deactivated. Please contact an administrator." });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(401).json({ message: "Incorrect password." });
+      return res.status(401).json({ message: "Incorrect email or password." });
     }
 
-    // *** FIX START: Include department_id and department_name in JWT payload ***
     const jwtPayload = {
       id: user.id,
       fullname: user.fullname,
@@ -134,14 +62,13 @@ router.post("/login", async (req, res) => {
       role: user.role,
       department_id: user.department_id,
       department_name: user.department_name,
+      status: user.status
     };
-    // *** FIX END ***
 
     const token = jwt.sign(jwtPayload, process.env.JWT_KEY, {
       expiresIn: "3h",
     });
 
-    // *** FIX START: Include department_id and department_name in user response ***
     const userResponse = {
       id: user.id,
       fullname: user.fullname,
@@ -149,18 +76,17 @@ router.post("/login", async (req, res) => {
       role: user.role,
       department_id: user.department_id,
       department_name: user.department_name,
+      status: user.status === 1 ? true : false
     };
-    // *** FIX END ***
 
     return res.status(200).json({ token: token, user: userResponse });
   } catch (err) {
-    console.error("Login Error:", err.message, err.stack);
+    console.error("Backend: Login Error:", err.message, err.stack); // Added backend prefix
     return res.status(500).json({ message: "Server error during login." });
   }
 });
 
 // VERIFY TOKEN MIDDLEWARE
-// This middleware now explicitly adds department details to req object from decoded token
 const verifyToken = async (req, res, next) => {
   try {
     const authHeader = req.headers["authorization"];
@@ -174,11 +100,12 @@ const verifyToken = async (req, res, next) => {
     req.userRole = decoded.role;
     req.userFullname = decoded.fullname;
     req.userEmail = decoded.email;
-    req.userDepartmentId = decoded.department_id; // Will be undefined if not in JWT
-    req.userDepartmentName = decoded.department_name; // Will be undefined if not in JWT
+    req.userDepartmentId = decoded.department_id;
+    req.userDepartmentName = decoded.department_name;
+    req.userStatus = decoded.status;
     next();
   } catch (err) {
-    console.error("Token verification error:", err.name, err.message);
+    console.error("Backend: Token verification error:", err.name, err.message); // Added backend prefix
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ message: "Token expired. Please log in again." });
     }
@@ -189,19 +116,44 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
-// DASHBOARD ROUTE (Returns basic user info from token)
+// DASHBOARD ROUTE
 router.get("/dashboard", verifyToken, async (req, res) => {
-  res.status(200).json({ message: "Dashboard access granted.", user: {
-    id: req.userId,
-    fullname: req.userFullname,
-    email: req.userEmail,
-    role: req.userRole,
-    department_id: req.userDepartmentId,
-    department_name: req.userDepartmentName,
-  }});
+  try {
+    const pool = await connectToDatabase();
+    const [rows] = await pool.query(
+      `SELECT
+         u.id, u.fullname, u.email, u.role, u.department_id, u.status,
+         d.name AS department_name
+       FROM
+         users u
+       LEFT JOIN
+         departments d ON u.department_id = d.id
+       WHERE u.id = ?`,
+      [req.userId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "User not found in database." });
+    }
+    
+    const user = {
+      ...rows[0],
+      status: rows[0].status === 1 ? true : false
+    };
+
+    if (!user.status) {
+        return res.status(403).json({ message: "Account is not active. Access denied." });
+    }
+
+    res.status(200).json({ message: "Dashboard access granted.", user: user });
+  } catch (err) {
+    console.error("Backend: Error fetching current user data for dashboard:", err.message, err.stack); // Added backend prefix
+    res.status(500).json({ message: "Server error fetching user data." });
+  }
 });
 
-// UPDATE PROFILE ROUTE (for user to update their OWN profile)
+
+// UPDATE PROFILE ROUTE
 router.put("/update-profile", verifyToken, async (req, res) => {
   const { newName, newEmail, currentPassword, newPassword } = req.body;
   const userId = req.userId;
@@ -278,7 +230,6 @@ router.put("/update-profile", verifyToken, async (req, res) => {
     
     await connection.commit();
 
-    // Ensure status is boolean for frontend consistency
     const updatedUser = {
       ...updatedUserRows[0],
       status: updatedUserRows[0].status === 1 ? true : false
@@ -291,7 +242,7 @@ router.put("/update-profile", verifyToken, async (req, res) => {
 
   } catch (error) {
     if (connection) await connection.rollback();
-    console.error("Update Profile Error:", error.message, error.stack);
+    console.error("Backend: Update Profile Error:", error.message, error.stack); // Added backend prefix
     res.status(500).json({ message: "Error updating profile." });
   } finally {
     if (connection) {
@@ -300,7 +251,7 @@ router.put("/update-profile", verifyToken, async (req, res) => {
   }
 });
 
-// CURRENT-USER ROUTE (used by AuthContext to get full user data from token)
+// CURRENT-USER ROUTE
 router.get("/me", verifyToken, async (req, res) => {
   try {
     const pool = await connectToDatabase();
@@ -310,10 +261,9 @@ router.get("/me", verifyToken, async (req, res) => {
       return res.status(400).json({ message: "User ID not found in token." });
     }
 
-    // *** FIX START: Ensure department_id, department_name, and status are selected ***
     const [rows] = await pool.query(
       `SELECT
-         u.id, u.fullname, u.email, u.role, u.department_id, u.status,
+         u.id, u.fullname, u.email, u.role, u.department_id, u.status, u.phone, u.dob,
          d.name AS department_name
        FROM
          users u
@@ -322,13 +272,11 @@ router.get("/me", verifyToken, async (req, res) => {
        WHERE u.id = ?`,
       [userIdToFetch]
     );
-    // *** FIX END ***
 
     if (rows.length === 0) {
       return res.status(404).json({ message: "User not found in database." });
     }
     
-    // Ensure status is boolean for frontend consistency
     const user = {
       ...rows[0],
       status: rows[0].status === 1 ? true : false
@@ -336,9 +284,126 @@ router.get("/me", verifyToken, async (req, res) => {
 
     res.status(200).json(user);
   } catch (err) {
-    console.error("Error fetching current user data (/me):", err.message, err.stack);
+    console.error("Backend: Error fetching current user data (/me):", err.message, err.stack); // Added backend prefix
     res.status(500).json({ message: "Server error fetching user data." });
   }
 });
+
+
+// --- ADMIN ROUTES ---
+
+const isAdmin = (req, res, next) => {
+  if (req.userRole !== 'Admin') {
+    return res.status(403).json({ message: "Access denied. Admin privileges required." });
+  }
+  next();
+};
+
+// GET PENDING USER REQUESTS (for UserRequestsPage)
+router.get('/admin/user-requests', verifyToken, isAdmin, async (req, res) => {
+    console.log('Backend: /admin/user-requests endpoint hit.'); // Debug
+    try {
+        const pool = await connectToDatabase();
+        // --- CRITICAL: This query fetches users with status = 0 ---
+        const [pendingUsers] = await pool.query(
+            `SELECT
+                u.id, u.fullname, u.email, u.role, u.phone, u.dob, u.created_at, u.department_id, u.status,
+                d.name AS department_name
+            FROM
+                users u
+            LEFT JOIN
+                departments d ON u.department_id = d.id
+            WHERE u.status = 0` // This is the key condition
+        );
+        console.log(`Backend: Query successful. Found ${pendingUsers.length} pending user(s).`); // Debug
+        console.log('Backend: Pending users data being sent:', pendingUsers); // Debug - inspect this array
+        res.status(200).json(pendingUsers);
+    } catch (error) {
+        console.error("Backend: Error fetching pending user requests:", error.message, error.stack); // Debug
+        res.status(500).json({ message: "Failed to fetch pending user requests." });
+    }
+});
+
+// GET ALL USERS (for UserManagementPage)
+router.get('/admin/users', verifyToken, isAdmin, async (req, res) => {
+    console.log('Backend: /admin/users endpoint hit.'); // Debug
+    try {
+        const pool = await connectToDatabase();
+        const [allUsers] = await pool.query(
+            `SELECT
+                u.id, u.fullname, u.email, u.role, u.phone, u.dob, u.status, u.department_id,
+                d.name AS department_name
+            FROM
+                users u
+            LEFT JOIN
+                departments d ON u.department_id = d.id`
+        );
+        
+        const usersForFrontend = allUsers.map(user => ({
+            ...user,
+            status: user.status === 1 ? true : false
+        }));
+        console.log(`Backend: Found ${usersForFrontend.length} total users.`); // Debug
+        res.status(200).json(usersForFrontend);
+    } catch (error) {
+        console.error("Backend: Error fetching all users for admin:", error.message, error.stack); // Debug
+        res.status(500).json({ message: "Failed to fetch all users." });
+    }
+});
+
+
+// UPDATE USER STATUS (for both UserRequestsPage approve/reject AND UserManagementPage toggle)
+router.put('/admin/users/:id/status', verifyToken, isAdmin, async (req, res) => {
+    const userId = req.params.id;
+    const { status } = req.body; 
+
+    let newDbStatus;
+    if (typeof status === 'boolean') { 
+        newDbStatus = status ? 1 : 0;
+    } else if (typeof status === 'string') {
+        if (status === 'active') {
+            newDbStatus = 1; 
+        } else if (status === 'rejected') {
+            newDbStatus = 0; 
+        } else {
+            return res.status(400).json({ message: "Invalid string status value provided." });
+        }
+    } else {
+        return res.status(400).json({ message: "Invalid status data type provided." });
+    }
+
+    try {
+        const pool = await connectToDatabase();
+
+        const [targetUserRows] = await pool.query("SELECT id, role FROM users WHERE id = ?", [userId]);
+        if (targetUserRows.length === 0) {
+            return res.status(404).json({ message: "User not found." });
+        }
+        const targetUser = targetUserRows[0];
+
+        if (req.userId === targetUser.id) { 
+             return res.status(403).json({ message: "You cannot change your own status via this route." });
+        }
+        if (targetUser.role === 'Admin' && req.userRole === 'Admin' && req.userId !== targetUser.id) {
+             return res.status(403).json({ message: "Admins cannot change the status of other Admin accounts." });
+        }
+
+        const [updateResult] = await pool.query(
+            "UPDATE users SET status = ? WHERE id = ?",
+            [newDbStatus, userId]
+        );
+
+        if (updateResult.affectedRows === 1) {
+            res.status(200).json({ message: "User status updated successfully." });
+        } else {
+            res.status(400).json({ message: "Failed to update user status (no rows affected)." });
+        }
+
+    } catch (error) {
+        console.error("Backend: Error updating user status:", error.message, error.stack); // Added backend prefix
+        res.status(500).json({ message: "Server error updating user status." });
+    }
+});
+
 
 export default router;

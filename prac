@@ -1,0 +1,23 @@
+
+
+ 
+
+ <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 ${
+          darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'
+        } shadow-sm`}>
+        
+
+
+<header className={`flex items-center justify-between h-20 px-6 sm:px-8 z-20 transition-colors duration-300 print:hidden w-full
+                         sticky top-0 // <--- KEY CHANGES: sticky and top-0
+                         ${darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'} shadow-sm`}>
+
+                          <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 
+                          ${darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'} shadow-sm`}>
+
+
+                          import React, { useContext, useMemo } from 'react';
+import { NavLink } from 'react-router-dom';
+import { ThemeContext } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { SidebarProvider, useSidebar } from '../../contexts/SidebarContext';

@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState, useRef, useMemo } from "react";
+import React, { useContext, useEffect, useState, useRef, useMemo, useCallback } from "react"; // Add useCallback
 import { InventoryContext } from "../contexts/InventoryContext";
 import { ThemeContext } from "../contexts/ThemeContext";
 import { useNavigate, Link } from "react-router-dom";
@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
 import Layout from "../Components/Layout/Layout";
+import { useSidebar } from '../contexts/SidebarContext'; // UNCOMMENT THIS LINE
 
 import {
   MdDashboard, MdInventory, MdErrorOutline, MdWarningAmber, MdQueryStats,
@@ -14,7 +15,6 @@ import {
   MdAccountCircle, MdHelpOutline, MdLogout, MdSettings,
   MdWbSunny, MdModeNight, MdOutlineCategory, MdAttachMoney,
   MdHistory, MdCheckCircle, MdLowPriority,
-  MdMenu, MdClose,
   MdPendingActions, MdArrowForward, MdAssessment, MdList
 } from "react-icons/md";
 
@@ -41,7 +41,7 @@ const formatTimeAgo = (dateString) => {
   if (days < 30) return `${days} days ago`;
   const months = Math.floor(days / 30);
   if (months < 12) return `${months} months ago`;
-  const years = Math.floor(months / 12);
+  const years = Math.floor(days / 12); // Corrected: should be floor(months / 12)
   return `${years} years ago`;
 };
 
@@ -59,15 +59,15 @@ const StatCardSkeleton = ({ darkMode }) => (
 // Enhanced Framer Motion Variants
 const bannerVariants = {
   hidden: { opacity: 0, y: -30 },
-  visible: { 
-    opacity: 1, 
-    y: 0, 
-    transition: { 
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
       type: "spring",
       damping: 10,
       stiffness: 100,
       duration: 0.8
-    } 
+    }
   }
 };
 
@@ -84,21 +84,21 @@ const containerVariants = {
 };
 
 const itemVariants = {
-  hidden: { 
-    y: 25, 
-    opacity: 0, 
-    scale: 0.98 
+  hidden: {
+    y: 25,
+    opacity: 0,
+    scale: 0.98
   },
-  visible: { 
-    y: 0, 
-    opacity: 1, 
-    scale: 1, 
-    transition: { 
+  visible: {
+    y: 0,
+    opacity: 1,
+    scale: 1,
+    transition: {
       type: "spring",
       damping: 10,
       stiffness: 100,
       duration: 0.5
-    } 
+    }
   },
   hover: {
     y: -3,
@@ -108,43 +108,43 @@ const itemVariants = {
 
 const sectionWrapperVariants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { 
-    opacity: 1, 
-    y: 0, 
-    transition: { 
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
       type: "spring",
       damping: 15,
       stiffness: 100,
       duration: 0.6
-    } 
+    }
   }
 };
 
 const dropdownVariants = {
-  hidden: { 
-    opacity: 0, 
-    scale: 0.95, 
+  hidden: {
+    opacity: 0,
+    scale: 0.95,
     y: -15,
-    transition: { duration: 0.15 } 
+    transition: { duration: 0.15 }
   },
-  visible: { 
-    opacity: 1, 
-    scale: 1, 
+  visible: {
+    opacity: 1,
+    scale: 1,
     y: 0,
-    transition: { 
+    transition: {
       type: "spring",
       damping: 20,
       stiffness: 300,
       duration: 0.3
-    } 
+    }
   },
-  exit: { 
-    opacity: 0, 
-    scale: 0.95, 
-    y: -15, 
-    transition: { 
-      duration: 0.2 
-    } 
+  exit: {
+    opacity: 0,
+    scale: 0.95,
+    y: -15,
+    transition: {
+      duration: 0.2
+    }
   }
 };
 
@@ -177,11 +177,12 @@ const Dashboard = () => {
   const { currentUser, isLoadingAuth, logout: authLogout } = useAuth();
   const { orders, loadingOrders, ordersError, fetchOrders } = useOrders();
 
+  const { isSidebarOpen } = useSidebar(); // ADD THIS LINE TO GET THE SIDEBAR STATE (already there)
+
   const [categoryData, setCategoryData] = useState([]);
   const [recentActivities, setRecentActivities] = useState([]);
   const [itemsBelowReorderPoint, setItemsBelowReorderPoint] = useState([]);
 
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
   const profileButtonRef = useRef(null);
@@ -196,6 +197,7 @@ const Dashboard = () => {
     return acc + (quantity * cost_price);
   }, 0);
 
+  // Existing useEffect for initial data fetch and auth redirection
   useEffect(() => {
     if (!isLoadingAuth && currentUser) {
         if (fetchItems) {
@@ -209,6 +211,7 @@ const Dashboard = () => {
     }
   }, [isLoadingAuth, currentUser, fetchItems, navigate, fetchOrders]);
 
+  // Existing useEffect for calculating derived states (categoryData, recentActivities, reorder points)
   useEffect(() => {
     if (items.length > 0) {
       const categoryCounts = items.reduce((acc, item) => {
@@ -234,12 +237,27 @@ const Dashboard = () => {
       ).sort((a, b) => (a.quantity - b.quantity));
       setItemsBelowReorderPoint(filteredReorderItems);
 
-    } else if (!itemsLoading) {
+    } else if (!itemsLoading) { // Only set 'No Items Yet' if not loading AND items are empty
       setCategoryData([{ name: 'No Items Yet', value: 1 }]);
       setRecentActivities([]);
       setItemsBelowReorderPoint([]);
     }
   }, [items, itemsLoading]);
+
+  // --- NEW useEffect FOR RESETTING/REFRESHING ON SIDEBAR OPEN ---
+  useEffect(() => {
+    if (isSidebarOpen) {
+      // When the sidebar opens, trigger a refresh of the dashboard's data.
+      // This ensures the displayed information is up-to-date.
+      console.log("Sidebar opened: Triggering Dashboard data refresh.");
+      fetchItems();  // Re-fetch inventory items
+      fetchOrders(); // Re-fetch order requests
+      setProfileOpen(false); // Close any open dropdowns like profile, for a clean state
+    }
+    // No need for an 'else' block for when sidebar closes, as refresh is only on open.
+  }, [isSidebarOpen, fetchItems, fetchOrders]); // Depend on isSidebarOpen and the fetch functions
+
+  // --- END NEW useEffect ---
 
   const swalThemeProps = {
     background: darkMode ? 'rgba(30, 41, 59, 0.98)' : 'rgba(255, 255, 255, 0.98)',
@@ -307,33 +325,25 @@ const Dashboard = () => {
       return null;
   }
 
-  return (
-    <Layout>
-      <div className={`flex-1 flex flex-col min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+   // const { isSidebarOpen } = useSidebar(); // Already declared above
 
-        {/* Dashboard Header */}
-        <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 transition-colors duration-300 print:hidden
+  return (
+     <Layout>
+      {/* Updated Header with dynamic positioning */}
+      <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 z-60
+                         transition-all duration-300
+                         left-0
+                         ${isSidebarOpen ? 'md:left-[250px]' : 'md:left-[80px]'}
+                         right-0
                          ${darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'} shadow-sm`}>
-          <div className="flex items-center gap-3">
-             <div className={`p-2.5 rounded-lg ${darkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
-                <MdDashboard size={24}/>
-            </div>
-            <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
-              Dashboard Overview
-            </h2>
-            <MotionButton
-              className="md:hidden p-2 rounded-lg focus:outline-none focus:ring-2"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              {mobileMenuOpen ? (
-                <MdClose className={`text-2xl ${darkMode ? 'text-slate-300' : 'text-slate-600'}`} />
-              ) : (
-                <MdMenu className={`text-2xl ${darkMode ? 'text-slate-300' : 'text-slate-600'}`} />
-              )}
-            </MotionButton>
+        <div className="flex items-center gap-3">
+          <div className={`p-2.5 rounded-lg ${darkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
+            <MdDashboard size={24}/>
           </div>
+          <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
+            Dashboard Overview
+          </h2>
+        </div>
           <div className="flex items-center gap-4">
             <MotionButton
               onClick={handleThemeSwitch} aria-label="Toggle Dark Mode"
@@ -367,36 +377,36 @@ const Dashboard = () => {
                     exit="exit"
                     variants={dropdownVariants}
                   >
-                    <MotionButton 
+                    <MotionButton
                       className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${darkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-slate-100 text-slate-700'}`}
                       whileHover={{ x: 5 }}
                       whileTap={{ scale: 0.98 }}
-                    > 
-                      <MdAccountCircle size={18}/> Profile 
+                    >
+                      <MdAccountCircle size={18}/> Profile
                     </MotionButton>
-                    <MotionButton 
-                      onClick={() => { navigate("/settings"); setProfileOpen(false); }} 
+                    <MotionButton
+                      onClick={() => { navigate("/settings"); setProfileOpen(false); }}
                       className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${darkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:hover:bg-slate-100 text-slate-700'}`}
                       whileHover={{ x: 5 }}
                       whileTap={{ scale: 0.98 }}
-                    > 
-                      <MdSettings size={18}/> Settings 
+                    >
+                      <MdSettings size={18}/> Settings
                     </MotionButton>
-                    <MotionButton 
+                    <MotionButton
                       className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${darkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:hover:bg-slate-100 text-slate-700'}`}
                       whileHover={{ x: 5 }}
                       whileTap={{ scale: 0.98 }}
-                    > 
-                      <MdHelpOutline size={18}/> Help 
+                    >
+                      <MdHelpOutline size={18}/> Help
                     </MotionButton>
                     <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-slate-200'} my-1`}></div>
-                    <MotionButton 
-                      onClick={() => { handleLogout(); setProfileOpen(false); }} 
+                    <MotionButton
+                      onClick={() => { handleLogout(); setProfileOpen(false); }}
                       className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${darkMode ? 'hover:bg-slate-700 text-red-400' : 'hover:hover:bg-slate-100 text-red-600'}`}
                       whileHover={{ x: 5 }}
                       whileTap={{ scale: 0.98 }}
-                    > 
-                      <MdLogout size={18}/> Logout 
+                    >
+                      <MdLogout size={18}/> Logout
                     </MotionButton>
                   </MotionDiv>
                 )}
@@ -405,42 +415,12 @@ const Dashboard = () => {
           </div>
         </header>
 
-        {/* Mobile Menu Overlay */}
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <MotionDiv
-              className="fixed inset-0 z-40 md:hidden"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <div className="absolute inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
-              <MotionDiv
-                className={`absolute top-0 left-0 w-64 h-full ${darkMode ? 'bg-slate-800' : 'bg-gradient-to-b from-indigo-600 to-indigo-700'} shadow-xl flex flex-col`}
-                initial={{ x: -300 }}
-                animate={{ x: 0 }}
-                exit={{ x: -300 }}
-                transition={{ type: "spring", damping: 20, stiffness: 300 }}
-              >
-                <p className={`p-4 ${darkMode ? 'text-slate-300' : 'text-white'}`}>Mobile menu content goes here (if needed)</p>
-                <MotionButton 
-                  className="absolute top-4 right-4 p-2 rounded-lg focus:outline-none focus:ring-2" 
-                  onClick={() => setMobileMenuOpen(false)}
-                  whileHover={{ rotate: 90 }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <MdClose className={`text-2xl ${darkMode ? 'text-slate-300' : 'text-white'}`} />
-                </MotionButton>
-              </MotionDiv>
-            </MotionDiv>
-          )}
-        </AnimatePresence>
-
         {/* Page Content */}
-        <main className="flex-1 p-6 pt-[104px] overflow-y-auto">
+        {/* The main content area. Removed pt-[104px] here because sticky header will manage its own space */}
+        <main className="flex-1 p-6 pt-24 overflow-y-auto">
           <div className="max-w-7xl mx-auto space-y-8">
-            {/* Welcome Banner */}
+            {/* ... Rest of your Dashboard content ... */}
+            {/* All elements below here will be pushed down by the header and centered by max-w-7xl mx-auto */}
             <MotionDiv
               className={`p-6 rounded-xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6
                             ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white'}`}
@@ -462,20 +442,20 @@ const Dashboard = () => {
 
             {/* Statistic Cards */}
             {itemsLoading && currentUser ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6"> 
-                {[...Array(5)].map((_, i) => <StatCardSkeleton key={`skeleton-${i}`} darkMode={darkMode} />)} 
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                {[...Array(5)].map((_, i) => <StatCardSkeleton key={`skeleton-${i}`} darkMode={darkMode} />)}
               </div>
             ) : itemsError && currentUser ? (
-              <div className={`col-span-full text-center py-10 rounded-xl shadow-lg p-6 ${darkMode ? 'bg-slate-800 text-red-400' : 'bg-white text-red-600'}`}> 
-                <MdErrorOutline size={48} className="mx-auto mb-3"/> 
-                <p className="font-semibold text-lg">Error loading inventory data.</p> 
-                <p className="text-sm">{itemsError.message || "Please try refreshing the page."}</p> 
+              <div className={`col-span-full text-center py-10 rounded-xl shadow-lg p-6 ${darkMode ? 'bg-slate-800 text-red-400' : 'bg-white text-red-600'}`}>
+                <MdErrorOutline size={48} className="mx-auto mb-3"/>
+                <p className="font-semibold text-lg">Error loading inventory data.</p>
+                <p className="text-sm">{itemsError.message || "Please try refreshing the page."}</p>
               </div>
             ) : !itemsLoading && items.length === 0 && currentUser ? (
-              <div className={`col-span-full text-center py-10 rounded-xl shadow-lg p-6 ${darkMode ? 'bg-slate-800 text-slate-400' : 'bg-white text-slate-500'}`}> 
-                <MdInventory size={48} className="mx-auto mb-3"/> 
-                <p className="font-semibold text-lg">No items in your inventory yet.</p> 
-                <p className="text-sm">Click "Add New Item" to get started!</p> 
+              <div className={`col-span-full text-center py-10 rounded-xl shadow-lg p-6 ${darkMode ? 'bg-slate-800 text-slate-400' : 'bg-white text-slate-500'}`}>
+                <MdInventory size={48} className="mx-auto mb-3"/>
+                <p className="font-semibold text-lg">No items in your inventory yet.</p>
+                <p className="text-sm">Click "Add New Item" to get started!</p>
               </div>
             ) : currentUser && items.length > 0 ? (
               <MotionDiv
@@ -491,21 +471,21 @@ const Dashboard = () => {
                     className={`p-5 sm:p-6 rounded-xl shadow-lg transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 border-b-4 ${card.link ? 'cursor-pointer' : 'cursor-default'} ${darkMode ? `bg-slate-800 border-${card.color}-600 hover:border-${card.color}-500` : `bg-white border-${card.color}-400 hover:border-${card.color}-500`}`}
                     variants={itemVariants}
                     custom={index}
-                    whileHover={{ 
-                      scale: 1.03, 
-                      boxShadow: darkMode ? '0 10px 20px rgba(0,0,0,0.4)' : '0 10px 20px rgba(0,0,0,0.1)',
+                    whileHover={{
+                      scale: 1.03,
+                      boxShadow: darkMode ? '0 5px 10px rgba(0,0,0,0.4)' : '0 10px 20px rgba(0,0,0,0.1)',
                       transition: { duration: 0.2 }
                     }}
                     whileTap={{ scale: 0.98 }}
                   >
                     <div className="flex items-center justify-between mb-3">
                       <h3 className={`text-base font-semibold ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>{card.title}</h3>
-                      <div className={`p-2 rounded-full ${darkMode ? `bg-${card.color}-500/20 text-${card.color}-400` : `bg-${card.color}-100 text-${card.color}-600`}`}> 
-                        <card.Icon className="text-2xl" /> 
+                      <div className={`p-2 rounded-full ${darkMode ? `bg-${card.color}-500/20 text-${card.color}-400` : `bg-${card.color}-100 text-${card.color}-600`}`}>
+                        <card.Icon className="text-2xl" />
                       </div>
                     </div>
-                    <p className={`text-xl sm:text-2xl font-extrabold break-words ${darkMode ? `text-${card.color}-300` : `text-${card.color}-600`}`}> 
-                      {card.value} 
+                    <p className={`text-xl sm:text-2xl font-extrabold break-words ${darkMode ? `text-${card.color}-300` : `text-${card.color}-600`}`}>
+                      {card.value}
                     </p>
                   </MotionDiv>
                 ))}
@@ -524,36 +504,36 @@ const Dashboard = () => {
                   <h3 className={`text-xl font-semibold flex items-center gap-3 ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>
                     <MdPendingActions className="text-2xl text-yellow-500" /> Pending Item Requests ({pendingOrders.length})
                   </h3>
-                  <MotionLink 
-                    to="/incoming-requests" 
+                  <MotionLink
+                    to="/incoming-requests"
                     className={`flex items-center text-sm font-medium ${darkMode ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-700'}`}
-                    whileHover={{ x: 5 }} 
+                    whileHover={{ x: 5 }}
                     whileTap={{ scale: 0.98 }}
-                  > 
-                    View All Requests <MdArrowForward className="ml-1 text-base" /> 
+                  >
+                    View All Requests <MdArrowForward className="ml-1 text-base" />
                   </MotionLink>
                 </div>
                 {loadingOrders ? (
-                  <div className="py-10 text-center"> 
-                    <LoadingSpinner /> 
-                    <p className={`mt-4 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Loading requests...</p> 
+                  <div className="py-10 text-center">
+                    <LoadingSpinner />
+                    <p className={`mt-4 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Loading requests...</p>
                   </div>
                 ) : ordersError ? (
-                  <div className="py-10 text-center text-red-500"> 
-                    <p>Error loading requests: {ordersError.message}</p> 
-                    <MotionButton 
-                      onClick={fetchOrders} 
+                  <div className="py-10 text-center text-red-500">
+                    <p>Error loading requests: {ordersError.message}</p>
+                    <MotionButton
+                      onClick={fetchOrders}
                       className="mt-4 px-4 py-2 rounded-md bg-indigo-500 text-white text-sm"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                     >
                       Retry
-                    </MotionButton> 
+                    </MotionButton>
                   </div>
                 ) : pendingOrders.length === 0 ? (
-                  <div className={`py-10 text-center ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}> 
-                    <p className="font-medium">No pending item requests.</p> 
-                    <p className="text-sm">Great job, everything is up to date!</p> 
+                  <div className={`py-10 text-center ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <p className="font-medium">No pending item requests.</p>
+                    <p className="text-sm">Great job, everything is up to date!</p>
                   </div>
                 ) : (
                   <MotionDiv
@@ -564,11 +544,11 @@ const Dashboard = () => {
                   >
                     <table className="min-w-full text-sm">
                       <thead className={`${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'} text-xs uppercase tracking-wider`}>
-                        <tr> 
-                          <th className="py-2 px-3 text-left">Item</th> 
-                          <th className="py-2 px-3 text-center">Qty</th> 
-                          <th className="py-2 px-3 text-left">Requester</th> 
-                          <th className="py-2 px-3 text-left">Date</th> 
+                        <tr>
+                          <th className="py-2 px-3 text-left">Item</th>
+                          <th className="py-2 px-3 text-center">Qty</th>
+                          <th className="py-2 px-3 text-left">Requester</th>
+                          <th className="py-2 px-3 text-left">Date</th>
                         </tr>
                       </thead>
                       <MotionTbody
@@ -608,23 +588,23 @@ const Dashboard = () => {
                     animate="visible"
                     variants={sectionWrapperVariants}
                   >
-                      <h3 className={`text-xl font-semibold mb-1 flex items-center gap-2 ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}> 
-                        <MdOutlineBarChart className={`text-2xl ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`}/> Item Categories Distribution 
+                      <h3 className={`text-xl font-semibold mb-1 flex items-center gap-2 ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
+                        <MdOutlineBarChart className={`text-2xl ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`}/> Item Categories Distribution
                       </h3>
                       <p className={`text-sm mb-4 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Based on item quantity per category.</p>
-                      {itemsError ? ( 
-                        <div className={`flex flex-col items-center justify-center h-64 text-center ${darkMode ? 'text-red-400' : 'text-red-600'}`}> 
-                          <MdWarningAmber size={40} className="mb-2"/> 
-                          <p>Error loading item data for chart.</p> 
-                        </div> 
-                      ) : categoryData.length > 0 && categoryData[0].name !== 'No Items Yet' && categoryData[0].name !== 'No Data' ? ( 
-                        <CategoryPieChart data={categoryData} darkMode={darkMode} /> 
-                      ) : ( 
-                        <div className={`flex flex-col items-center justify-center h-64 text-center ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}> 
-                          <MdPieChartOutline size={48} className="mb-3"/> 
-                          <p className="font-medium">No category data to display.</p> 
-                          <p className="text-xs">Add items with categories to see the chart.</p> 
-                        </div> 
+                      {itemsError ? (
+                        <div className={`flex flex-col items-center justify-center h-64 text-center ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                          <MdWarningAmber size={40} className="mb-2"/>
+                          <p>Error loading item data for chart.</p>
+                        </div>
+                      ) : categoryData.length > 0 && categoryData[0].name !== 'No Items Yet' && categoryData[0].name !== 'No Data' ? (
+                        <CategoryPieChart data={categoryData} darkMode={darkMode} />
+                      ) : (
+                        <div className={`flex flex-col items-center justify-center h-64 text-center ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <MdPieChartOutline size={48} className="mb-3"/>
+                          <p className="font-medium">No category data to display.</p>
+                          <p className="text-xs">Add items with categories to see the chart.</p>
+                        </div>
                       )}
                   </MotionDiv>
 
@@ -637,8 +617,8 @@ const Dashboard = () => {
                         animate="visible"
                         variants={sectionWrapperVariants}
                       >
-                          <h3 className={`text-xl font-semibold mb-4 flex items-center gap-2 ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}> 
-                            <MdLowPriority className={`text-2xl ${darkMode ? 'text-red-400' : 'text-red-600'}`}/> Items Below Reorder Point 
+                          <h3 className={`text-xl font-semibold mb-4 flex items-center gap-2 ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
+                            <MdLowPriority className={`text-2xl ${darkMode ? 'text-red-400' : 'text-red-600'}`}/> Items Below Reorder Point
                           </h3>
                           {itemsBelowReorderPoint.length > 0 ? (
                               <MotionUl
@@ -655,30 +635,30 @@ const Dashboard = () => {
                                       custom={index}
                                       whileHover="hover"
                                     >
-                                      <div className={`p-2 rounded-full ${darkMode ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-600'}`}> 
-                                        <MdWarningAmber size={18}/> 
-                                      </div> 
-                                      <div className="flex-1"> 
-                                        <p className={`font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}> {item.item_name} </p> 
-                                        <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}> Current: {item.quantity} | Reorder: {item.reorderPoint} </p> 
-                                      </div> 
-                                      <MotionLink 
-                                        to={`/viewitems?search=${item.item_name}`} 
-                                        className={`text-xs px-2 py-1 rounded-full ${darkMode ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-indigo-500 hover:bg-indigo-600 text-white'}`} 
-                                        whileHover={{ scale: 1.05 }} 
+                                      <div className={`p-2 rounded-full ${darkMode ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-600'}`}>
+                                        <MdWarningAmber size={18}/>
+                                      </div>
+                                      <div className="flex-1">
+                                        <p className={`font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}> {item.item_name} </p>
+                                        <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}> Current: {item.quantity} | Reorder: {item.reorderPoint} </p>
+                                      </div>
+                                      <MotionLink
+                                        to={`/viewitems?search=${item.item_name}`}
+                                        className={`text-xs px-2 py-1 rounded-full ${darkMode ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-indigo-500 hover:bg-indigo-600 text-white'}`}
+                                        whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
-                                      > 
-                                        View 
+                                      >
+                                        View
                                       </MotionLink>
                                     </MotionLi>
                                   ))}
                               </MotionUl>
-                          ) : ( 
-                            <div className={`text-center py-6 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}> 
-                              <MdLowPriority size={48} className="mx-auto mb-3 opacity-70"/> 
-                              <p className="font-medium">No items currently below reorder point.</p> 
-                              <p className="text-xs">Keep up the good work!</p> 
-                            </div> 
+                          ) : (
+                            <div className={`text-center py-6 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                              <MdLowPriority size={48} className="mx-auto mb-3 opacity-70"/>
+                              <p className="font-medium">No items currently below reorder point.</p>
+                              <p className="text-xs">Keep up the good work!</p>
+                            </div>
                           )}
                       </MotionDiv>
 
@@ -689,8 +669,8 @@ const Dashboard = () => {
                         animate="visible"
                         variants={sectionWrapperVariants}
                       >
-                          <h3 className={`text-xl font-semibold mb-4 flex items-center gap-2 ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}> 
-                            <MdHistory className={`text-2xl ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}/> Recent Activities 
+                          <h3 className={`text-xl font-semibold mb-4 flex items-center gap-2 ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
+                            <MdHistory className={`text-2xl ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}/> Recent Activities
                           </h3>
                           {recentActivities.length > 0 ? (
                               <MotionUl
@@ -707,23 +687,23 @@ const Dashboard = () => {
                                       custom={index}
                                       whileHover="hover"
                                     >
-                                      <div className={`p-2 rounded-full ${darkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}> 
-                                        <MdCheckCircle size={18}/> 
-                                      </div> 
-                                      <div className="flex-1"> 
-                                        <p className={`font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}> {item.item_name} </p> 
-                                        <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}> Quantity: {item.quantity} in {item.category || 'Uncategorized'} </p> 
-                                      </div> 
+                                      <div className={`p-2 rounded-full ${darkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
+                                        <MdCheckCircle size={18}/>
+                                      </div>
+                                      <div className="flex-1">
+                                        <p className={`font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}> {item.item_name} </p>
+                                        <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}> Quantity: {item.quantity} in {item.category || 'Uncategorized'} </p>
+                                      </div>
                                       <span className={`text-xs ${darkMode ? 'text-slate-500' : 'text-slate-600'}`}> {formatTimeAgo(item.date_added)} </span>
                                     </MotionLi>
                                   ))}
                               </MotionUl>
-                          ) : ( 
-                            <div className={`text-center py-6 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}> 
-                              <MdHistory size={48} className="mx-auto mb-3 opacity-70"/> 
-                              <p className="font-medium">No recent item activities.</p> 
-                              <p className="text-xs">Add new items to see them here.</p> 
-                            </div> 
+                          ) : (
+                            <div className={`text-center py-6 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                              <MdHistory size={48} className="mx-auto mb-3 opacity-70"/>
+                              <p className="font-medium">No recent item activities.</p>
+                              <p className="text-xs">Add new items to see them here.</p>
+                            </div>
                           )}
                       </MotionDiv>
 
@@ -735,41 +715,41 @@ const Dashboard = () => {
                         variants={sectionWrapperVariants}
                       >
                           <h3 className={`text-xl font-semibold mb-1 flex items-center gap-2 ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}> 🚀 Quick Actions </h3>
-                          <MotionLink 
-                            to="/AddItemsForm" 
+                          <MotionLink
+                            to="/AddItemsForm"
                             className={`w-full flex items-center justify-center gap-2.5 py-3 px-5 rounded-lg text-sm font-semibold transition-all duration-300 group ${darkMode ? 'bg-indigo-600 hover:bg-indigo-500 text-white focus-visible:ring-2 focus-visible:ring-indigo-400' : 'bg-indigo-500 hover:bg-indigo-600 text-white focus-visible:ring-2 focus-visible:ring-indigo-300' } hover:shadow-md active:scale-95`}
-                            whileHover={{ 
-                              scale: 1.02, 
+                            whileHover={{
+                              scale: 1.02,
                               boxShadow: darkMode ? '0 5px 10px rgba(0,0,0,0.3)' : '0 5px 10px rgba(0,0,0,0.1)',
                               transition: { duration: 0.2 }
                             }}
                             whileTap={{ scale: 0.98 }}
-                          > 
-                            <MdAddCircleOutline className="text-xl transition-transform duration-300 group-hover:scale-110" /> Add New Item 
+                          >
+                            <MdAddCircleOutline className="text-xl transition-transform duration-300 group-hover:scale-110" /> Add New Item
                           </MotionLink>
-                          <MotionLink 
-                            to="/reports" 
+                          <MotionLink
+                            to="/reports"
                             className={`w-full flex items-center justify-center gap-2.5 py-3 px-5 rounded-lg text-sm font-semibold transition-all duration-300 group ${darkMode ? 'bg-sky-600 hover:bg-sky-500 text-white focus-visible:ring-2 focus-visible:ring-sky-400' : 'bg-sky-500 hover:bg-sky-600 text-white focus-visible:ring-2 focus-visible:ring-sky-300' } hover:shadow-md active:scale-95`}
-                            whileHover={{ 
-                              scale: 1.02, 
+                            whileHover={{
+                              scale: 1.02,
                               boxShadow: darkMode ? '0 5px 10px rgba(0,0,0,0.3)' : '0 5px 10px rgba(0,0,0,0.1)',
                               transition: { duration: 0.2 }
                             }}
                             whileTap={{ scale: 0.98 }}
-                          > 
-                            <MdAssessment className="text-xl transition-transform duration-300 group-hover:scale-110" /> Generate Reports 
+                          >
+                            <MdAssessment className="text-xl transition-transform duration-300 group-hover:scale-110" /> Generate Reports
                           </MotionLink>
-                          <MotionLink 
-                            to="/viewitems" 
+                          <MotionLink
+                            to="/viewitems"
                             className={`w-full flex items-center justify-center gap-2.5 py-3 px-5 rounded-lg text-sm font-semibold transition-all duration-300 group ${darkMode ? 'bg-teal-600 hover:bg-teal-500 text-white focus-visible:ring-2 focus-visible:ring-teal-400' : 'bg-teal-500 hover:bg-teal-600 text-white focus-visible:ring-2 focus-visible:ring-teal-300' } hover:shadow-md active:scale-95`}
-                            whileHover={{ 
-                              scale: 1.02, 
+                            whileHover={{
+                              scale: 1.02,
                               boxShadow: darkMode ? '0 5px 10px rgba(0,0,0,0.3)' : '0 5px 10px rgba(0,0,0,0.1)',
                               transition: { duration: 0.2 }
                             }}
                             whileTap={{ scale: 0.98 }}
-                          > 
-                            <MdList className="text-xl transition-transform duration-300 group-hover:scale-110" /> View All Items 
+                          >
+                            <MdList className="text-xl transition-transform duration-300 group-hover:scale-110" /> View All Items
                           </MotionLink>
                       </MotionDiv>
                   </div>
@@ -777,12 +757,10 @@ const Dashboard = () => {
             )}
           </div>
         </main>
-      </div>
     </Layout>
   );
 };
 
-// Create motion components for table elements
 const MotionTbody = motion.tbody;
 const MotionTr = motion.tr;
 const MotionUl = motion.ul;

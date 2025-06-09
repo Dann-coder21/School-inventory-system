@@ -1,0 +1,81 @@
+/* src/index.css (or src/App.css) */
+
+/* SweetAlert2 Dark Mode Styles */
+/* These styles target the custom 'swal2-dark-mode' class applied via customClass in Swal.fire */
+
+.swal2-popup.swal2-dark-mode {
+  background-color: #334155 !important; /* Tailwind slate-700 */
+  color: #cbd5e1 !important; /* Tailwind slate-300 */
+  border: 1px solid #475569 !important; /* Tailwind slate-600 */
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Optional: add subtle shadow */
+}
+
+.swal2-popup.swal2-dark-mode .swal2-title {
+  color: #e2e8f0 !important; /* Tailwind slate-200 */
+}
+
+.swal2-popup.swal2-dark-mode .swal2-html-container {
+  color: #cbd5e1 !important; /* Tailwind slate-300 */
+}
+
+/* Icons */
+.swal2-popup.swal2-dark-mode .swal2-icon.swal2-warning {
+  border-color: #fbbf24 !important; /* Tailwind amber-400 */
+  color: #fbbf24 !important;
+}
+
+.swal2-popup.swal2-dark-mode .swal2-icon.swal2-error {
+  border-color: #ef4444 !important; /* Tailwind red-500 */
+  color: #ef4444 !important;
+}
+
+.swal2-popup.swal2-dark-mode .swal2-icon.swal2-success {
+  border-color: #22c55e !important; /* Tailwind green-500 */
+  color: #22c55e !important;
+}
+
+.swal2-popup.swal2-dark-mode .swal2-icon.swal2-info {
+  border-color: #60a5fa !important; /* Tailwind blue-400 */
+  color: #60a5fa !important;
+}
+
+/* Progress bar (e.g., for timers) */
+.swal2-popup.swal2-dark-mode .swal2-timer-progress-bar {
+  background: #3b82f6 !important; /* Tailwind blue-500 */
+}
+
+/* Input fields within modals (if any) */
+.swal2-popup.swal2-dark-mode .swal2-input,
+.swal2-popup.swal2-dark-mode .swal2-textarea {
+  background-color: #475569 !important; /* slate-600 */
+  border-color: #64748b !important; /* slate-500 */
+  color: #e2e8f0 !important; /* slate-200 */
+}
+.swal2-popup.swal2-dark-mode .swal2-input::placeholder,
+.swal2-popup.swal2-dark-mode .swal2-textarea::placeholder {
+    color: #94a3b8 !important; /* slate-400 */
+}
+
+
+/* Button styles (SweetAlert2 adds its own classes, so !important might be needed) */
+/* You might want to fine-tune these to match your button styles more precisely */
+.swal2-popup.swal2-dark-mode .swal2-confirm {
+  background-color: #4f46e5 !important; /* indigo-600 */
+  color: white !important;
+}
+.swal2-popup.swal2-dark-mode .swal2-confirm:focus {
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.5) !important; /* indigo-600 with transparency */
+}
+
+.swal2-popup.swal2-dark-mode .swal2-cancel {
+  background-color: #64748b !important; /* slate-500 */
+  color: white !important;
+}
+.swal2-popup.swal2-dark-mode .swal2-cancel:focus {
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.5) !important; /* slate-500 with transparency */
+}
+
+/* Modal overlay (backdrop) */
+.swal2-container.swal2-backdrop-show {
+  background: rgba(0, 0, 0, 0.7) !important; /* Deeper dark overlay for contrast */
+}

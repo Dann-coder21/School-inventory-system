@@ -296,12 +296,18 @@ const AddItemForm = () => {
     {/* Main Content Area (unchanged) */}
       <div className={`flex-1 flex flex-col ml-[250px] min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
         {/* Header (unchanged) */}
-        <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 transition-colors duration-300 print:hidden
-                           ${darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'} shadow-sm`}>
-          <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
-            Add New Item to Inventory
-          </h2>
-        </header>
+    <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 ${
+  darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'
+} shadow-sm`}>
+  <div className="flex items-center gap-3">
+    <div className={`p-2.5 rounded-lg ${darkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
+      <MdAddBox size={24}/>
+    </div>
+    <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
+      Add New Item to Inventory
+    </h2>
+  </div>
+</header>
 
         {/* Form Content (unchanged) */}
         <main className="flex-1 p-6 pt-[104px] overflow-y-auto flex items-center justify-center">

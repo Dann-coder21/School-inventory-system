@@ -13,7 +13,7 @@ import {
   MdPeople, MdShoppingCart, MdAssignmentTurnedIn, MdHistory,
   MdSort, MdArrowUpward, MdArrowDownward, MdMoreVert, MdClose, MdInfo, MdCheckCircle,
   MdError
-} from 'react-icons/md';
+} from 'react-icons/md'; // Ensure MdSort is imported here
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
@@ -50,8 +50,8 @@ const OrderHistory = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('');
   const [sortConfig, setSortConfig] = useState({
-    key: 'request_date',
-    direction: 'descending'
+    key: 'request_date', // Default sort by request date
+    direction: 'descending' // Default to newest first
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [ordersPerPage, setOrdersPerPage] = useState(10);
@@ -61,14 +61,36 @@ const OrderHistory = () => {
 
   const allowedRolesToView = useMemo(() => ['Admin', 'Staff', 'DepartmentHead', 'StockManager'], []);
 
+  // SweetAlert2 Theme Properties (Memoized for dark mode)
+  const swalThemeProps = useMemo(() => ({
+    background: darkMode ? 'rgba(30, 41, 59, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+    color: darkMode ? '#e2e8f0' : '#1e293b',
+    customClass: {
+      popup: 'rounded-xl shadow-2xl p-4 sm:p-6',
+      confirmButton: `px-5 py-2.5 rounded-lg font-semibold text-white text-sm ${darkMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-indigo-500 hover:bg-indigo-600'}`,
+      cancelButton: `px-5 py-2.5 rounded-lg font-semibold text-sm ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`,
+      title: `text-lg sm:text-xl font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`,
+      htmlContainer: `text-sm ${darkMode ? 'text-slate-300' : 'text-slate-600'}`,
+      icon: 'text-4xl sm:text-5xl mt-2 mb-2 sm:mb-4',
+    },
+    buttonsStyling: false,
+    backdrop: `rgba(0,0,0,0.65)`
+  }), [darkMode]);
+
+
   const fetchOrders = useCallback(async () => {
     setIsLoadingOrders(true);
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        Swal.fire('Authentication Error', 'No token found. Please log in again.', 'error');
+        Swal.fire({
+          ...swalThemeProps, // Apply dark mode theme
+          title: 'Authentication Error',
+          text: 'No token found. Please log in again.',
+          icon: 'error'
+        });
         setIsLoadingOrders(false);
-        setAllOrders([]); // Ensure allOrders is an array even if token is missing
+        setAllOrders([]);
         return;
       }
       const response = await axios.get(`${API_BASE_URL}/api/orders`, {
@@ -77,41 +99,43 @@ const OrderHistory = () => {
         },
       });
 
-      // --- IMPORTANT FIX START ---
       if (Array.isArray(response.data)) {
+        // Sort by request_date descending initially as per default sortConfig
         const sortedOrders = response.data.sort((a, b) => new Date(b.request_date) - new Date(a.request_date));
         setAllOrders(sortedOrders);
       } else {
         console.error("API returned non-array for order history:", response.data);
-        setAllOrders([]); // Fallback to empty array
+        setAllOrders([]);
         Swal.fire({
+          ...swalThemeProps, // Apply dark mode theme
           title: 'Data Error',
           text: 'Received unexpected data format for order history. Displaying no orders.',
           icon: 'error',
         });
       }
-      // --- IMPORTANT FIX END ---
 
     } catch (error) {
       console.error("Failed to fetch orders:", error);
       const errorMsg = error.response?.data?.message || error.message || "Could not load order history.";
       Swal.fire({
+        ...swalThemeProps, // Apply dark mode theme
         title: 'Error Fetching Orders',
         text: errorMsg,
         icon: 'error',
       });
-      setAllOrders([]); // Ensure allOrders is an array on error
+      setAllOrders([]);
     } finally {
       setIsLoadingOrders(false);
     }
-  }, []); // Removed `swalThemeProps` from dependencies as it's not directly used here within the `try...catch` block.
+  }, [swalThemeProps]); // Added swalThemeProps to dependencies
+
 
   useEffect(() => {
     if (!isLoadingAuth && currentUser && allowedRolesToView.includes(currentUser.role)) {
       fetchOrders();
     } else if (!isLoadingAuth && (!currentUser || !allowedRolesToView.includes(currentUser.role))) {
       setIsLoadingOrders(false);
-      setAllOrders([]); // Ensure allOrders is empty if not authorized
+      setAllOrders([]);
     }
   }, [currentUser, isLoadingAuth, fetchOrders, allowedRolesToView]);
 
@@ -131,7 +155,6 @@ const OrderHistory = () => {
   }, [activeActionMenuId]);
 
   const filteredAndSortedOrders = useMemo(() => {
-    // allOrders is guaranteed to be an array now due to the fix in fetchData
     let tempOrders = [...allOrders];
 
     // Filter out 'Cancelled' orders by default
@@ -168,7 +191,7 @@ const OrderHistory = () => {
         if (isNaN(dateA.getTime())) return sortConfig.direction === 'ascending' ? -1 : 1; // Sort invalid dates to end
         if (isNaN(dateB.getTime())) return sortConfig.direction === 'ascending' ? 1 : -1; // Sort invalid dates to end
 
-        return sortConfig.direction === 'ascending' ? dateA - dateB : dateB - dateA;
+        return sortConfig.direction === 'ascending' ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
       } else {
         if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
         if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
@@ -199,11 +222,14 @@ const OrderHistory = () => {
     setSortConfig({ key: column, direction });
   };
 
+  // Enhanced getSortIcon to always show a sort icon
   const getSortIcon = (key) => {
-    if (sortConfig.key !== key) return null;
-    return sortConfig.direction === 'ascending'
-      ? <MdArrowUpward className="ml-1 text-xs" />
-      : <MdArrowDownward className="ml-1 text-xs" />;
+    if (sortConfig.key === key) {
+      return sortConfig.direction === 'ascending'
+        ? <MdArrowUpward size={16} />
+        : <MdArrowDownward size={16} />;
+    }
+    return <MdSort size={16} className={`${darkMode ? 'text-slate-400' : 'text-slate-500'} opacity-50`}/>;
   };
 
   const getStatusClass = (status) => {
@@ -255,13 +281,18 @@ const OrderHistory = () => {
   return (
     <Layout>
       <div className={`flex-1 flex flex-col min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-        <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 ${
-          darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'
-        } shadow-sm`}>
-          <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
-            Order History
-          </h2>
-        </header>
+       <header className={`flex items-center justify-between h-20 px-6 sm:px-8 fixed top-0 left-[250px] right-0 z-40 ${
+  darkMode ? 'bg-slate-800/75 backdrop-blur-lg border-b border-slate-700' : 'bg-white/75 backdrop-blur-lg border-b border-slate-200'
+} shadow-sm`}>
+  <div className="flex items-center gap-3">
+    <div className={`p-2.5 rounded-lg ${darkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
+      <MdHistory size={24}/>
+    </div>
+    <h2 className={`text-xl sm:text-2xl font-semibold ${darkMode ? 'text-slate-100' : 'text-slate-700'}`}>
+      Order History
+    </h2>
+  </div>
+</header>
 
         <main className="flex-1 p-6 pt-[104px] ml-[250px] overflow-y-auto max-w-full">
           <div className={`mb-4 p-4 rounded-lg shadow-md flex flex-wrap gap-4 items-center justify-between ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'}`}>
